@@ -1,0 +1,4 @@
+Follow AGENTS.md at the repo root as the source of truth.
+Think before coding, simplicity first, surgical changes only,
+goal-driven execution — verify with tests/build before finishing.
+Never include secrets. Match existing code patterns.
