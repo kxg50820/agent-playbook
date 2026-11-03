@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Playbook pre-push: block force-pushes to main/master.
+set -euo pipefail
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      # Force push = remote sha is not an ancestor of local sha
+      if [ "$remote_sha" != "0000000000000000000000000000000000000000" ] && \
+         ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+        echo "✗ Blocked: force-push to ${remote_ref#refs/heads/} is not allowed."
+        exit 1
+      fi
+      ;;
+  esac
+done
+exit 0
