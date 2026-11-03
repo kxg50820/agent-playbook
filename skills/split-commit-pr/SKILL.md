@@ -8,63 +8,94 @@ description: Sync with the default branch, create a feature branch, split the wo
 ## Standing rules
 
 1. **Never force-push.** No `--force`, `-f`, `--force-with-lease` or `+refspec`, on any branch.
-2. **Never rewrite pushed history.** No amend, rebase, reset + re-push or squash on a pushed branch. Fix with a new commit (`fix: …` / `revert: …`). Update from the default branch with `git merge origin/<default>`.
-3. **Multiple commits, one PR.** Split the work into logical commits and open a single PR. One commit is fine only when the change truly can't be split; say so.
-4. **Separate PRs only when the user explicitly asks.** Each still gets multiple commits.
-5. **Ask before committing**, unless the user already said "commit".
-6. The diff must follow the 4 "before coding" rules (assumptions stated, minimal, surgical, verified). Flag anything beyond the request before committing.
+2. **Never rewrite pushed history.** No amend, rebase, reset + re-push or squash on a pushed branch. Fix forward with a new commit.
+3. **Multiple commits, one PR.** Split the work into logical commits and open a single PR. One commit per logical step — never one giant commit, never one PR per commit unless the user explicitly asks for separate PRs.
+4. **PR body is the whole branch.** Title + description cover the whole branch, not just the latest commit.
+5. **Ask before committing.** Do not commit without asking the user first — even if the branch is ready.
+6. The diff must follow AGENTS.md. Keep it small, typed, tested and understandable.
+
+## 0. Jira ticket first
+
+Jira ticket first. If you didn't give one and the branch name doesn't have one, the agent asks before committing. The ticket goes in the PR description next to the change Summary.
+
+- Before any commit, look for a Jira ticket (a key like ABC-123) in this order: first, what the user gave in the task/conversation; then the current branch name.
+- If neither has one, ask the user for the ticket before committing — do not commit without one and do not invent one.
+- When the PR is created, put the ticket in the PR description next to the Summary of changes (see §4).
 
 ## 1. Sync and branch
 
-```bash
-git fetch origin
-git checkout <default> && git pull --ff-only origin <default>
-git checkout -b <branch>          # use the user's exact branch name
-```
-- Find `<default>` with `git symbolic-ref --short refs/remotes/origin/HEAD` (strip `origin/`).
-- Uncommitted work: list it and ask whether to stash (`git stash push -u -m "<why>"`) or commit it first. Never discard it.
-- "Pull latest into this branch": `git fetch origin && git merge origin/<default>`. Merge, don't rebase.
+1. `git switch main` (or the default branch for this repo) and run `git pull --ff-only`.
+2. Create the branch from the synced main with a ticket-led, lowercase slug, for example `feature/JIRA-123-add-login` (use the actual ticket key).
+3. If the user gave a different name, use that name exactly.
+4. Run `git status` to confirm the tree is clean.
 
-## 2. Split commits
 
-- One commit per logical unit (feature area, module, config key, migration…). If the user asks for N commits, make exactly N.
-- Conventional Commits: `feat(scope): …`, `fix(scope): …`, `refactor:`, `test:`, `docs:`, `chore:`.
-- Split one file across commits with `git add -p`, or apply the edits in stages.
-- Respect the project's commit hooks (lint, format, commit-msg). If a hook needs an interactive terminal and hangs, tell the user rather than silently skipping it.
-- Add any footer the user's or project's rules require (e.g. a co-author line).
-- Before the first push, show the plan: `git log --oneline origin/<default>..HEAD`. If it's one commit but the work spans several units, split it now. After pushing it can't be split without a force-push.
 
-## 3. Push
 
-```bash
-git push -u origin <branch>       # plain push only
-```
-If rejected because the remote is ahead: `git pull --no-rebase origin <branch>`, then push again.
 
-## 4. PR title and description: summarise the WHOLE branch
 
-Hosting defaults (branch name or last commit as title, empty template as body) are wrong for multi-commit branches. Never rely on them.
 
-1. Read the whole branch:
-   ```bash
-   git log --reverse --format='%h %s' origin/<default>..HEAD
-   git diff --stat origin/<default>...HEAD
-   ```
-2. **Title** (≤ 72 chars): conventional prefix + scope covering every commit. Mixed types → most significant (`feat` > `fix` > `refactor` > `chore` > `docs`).
-3. **Summary**: 1–3 lines — why, scope, and what is intentionally out of scope.
-4. **Generate the body** (cross-platform, no dependencies, read-only apart from the draft file):
-   ```bash
-   node <this-skill-dir>/scripts/pr-draft.js --title "<title>" --summary "<summary>" \
-        [--refs "<tickets / related PRs>"] [--extra-file <notes.md>] [--footer "<footer line>"] [--base <default>]
-   ```
-   It writes a Markdown body with a per-commit table, file stats, references and footer, and prints:
-   - `gh pr create` / `gh pr edit` commands for the detected host;
-   - a compare URL with title and body prefilled, for when `gh` isn't logged in.
-   If the repo has a PR template (`.github/pull_request_template.md`), fit the body into it.
-5. **Show the title and body** to the user in a copy-pasteable block before creating the PR.
-6. **Create or update** with `gh` when authenticated (`gh auth status --hostname <host>`); otherwise give the prefilled URL. Login is interactive — the user runs it.
-7. **New commits later:** push them to the same branch (same PR) and regenerate **both** title and body.
 
-## 5. Separate PRs (only when asked)
 
-Create each new branch from `origin/<default>` and `git cherry-pick` the relevant commits. On the original pushed branch, remove moved work with a `git revert` commit, never by rewriting history.
+
+
+
+
+
+
+## 2. Work and check
+
+1. Implement the change with small, reviewable diffs.
+2. Run the relevant tests/builds. If any fail, fix before continuing.
+3. Show what changed, what was verified, and what is still open — be honest about failures.
+
+## 3. Split commits
+
+1. Ask the user: "I want to split this work into these commits. Is that right?"
+2. Show the proposed commit list before committing.
+3. If the user agrees, commit in order, one logical step per commit, with a conventional message:
+   - `feat: add login validation`
+   - `fix: correct error message`
+   - `docs: update login docs`
+4. Each commit message should be short but complete.
+
+## 4. PR body
+
+Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The script uses only files inside the skill folder.
+
+1. Make sure the branch is pushed: `git push -u origin <branch>` — never force-push.
+2. Run `node scripts/pr-draft.js` from the repo root.
+3. The body uses this structure:
+   - Summary: 1–3 lines — why, scope, and what is intentionally out of scope, with the Jira ticket next to it (e.g. `Jira: ABC-123`).
+   - Changes: a list of the commits in this branch and what each one does.
+   - Testing: which tests/builds were run and the result.
+   - Follow-up: anything left to do, and the next step for the reviewer.
+4. Generate the body with `node scripts/pr-draft.js`, inspect it, then paste it into the PR description — do not paste anything the script did not generate. The script puts the Jira ticket next to the Summary; if it cannot find a ticket, it says a ticket is required instead of inventing one.
+5. If the user gives you a PR title, use it. Otherwise, use the ticket key plus a short summary of the whole branch, e.g. `ABC-123 Add login validation`.
+
+## 5. Open the PR
+
+1. If `gh` is available, run the `gh` command exactly as `scripts/pr-draft.js` prints it, then check that the PR was created.
+2. If `gh` is not available, print the exact PR creation URL the script prints and the full PR title and body, so the user can paste them.
+3. Do not edit the PR body by hand unless the user asks for a change. If they do, make the change, then regenerate the body with the script.
+4. Never open a PR per commit unless the user explicitly asks for separate PRs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
