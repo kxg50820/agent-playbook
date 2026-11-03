@@ -15,10 +15,18 @@ This single file contains the catalogue, the folder structure and the full sourc
 | Git | Never force-push or rewrite pushed history; multiple commits, one PR; ask before committing; never commit to main/master |
 | Hygiene | No secrets, don't hand-edit generated files, don't suppress scanner findings, keep file formatting/encoding |
 
+### Tool entry points
+| File | Tool | Content |
+|---|---|---|
+| `CLAUDE.md` | Claude Code | Imports `@AGENTS.md` + Claude-specific notes |
+| `.github/muse-instructions.md` | Copilot | Points to AGENTS.md |
+| `.muserules` | Cursor | Points to AGENTS.md |
+
 ### Skills (`skills/`)
 | Skill | Use when | Helper script |
 |---|---|---|
 | `split-commit-pr` | Create a branch, split work into logical commits, push (never force), open ONE PR whose title/body cover the whole branch | `scripts/pr-draft.js` — builds the PR body from all commits, prints `gh` commands and a prefilled compare URL |
+| `_template` | Starting point for a new skill (not installed) | — |
 | `change-ticket-release` | Promote validated changes (e.g. stage → prod) under a change ticket: ask ticket first, branch named after it, parity table, copy only approved items | `scripts/json-diff.js` — semantic JSON diff (ignores key order/BOM, matches array items by id) |
 
 ### Hooks / guardrails
@@ -26,12 +34,16 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|---|
 | `git-hooks/pre-push` → `guards/pre-push.js` | git itself (any tool or human), via global `core.hooksPath` | Blocks force-push, deleting protected branches, direct push to `main`/`master` (per-repo opt-in: `git config agentPlaybook.allowProtectedPush true`) |
 | `git-hooks/<other hooks>` | git | No guard; just chain to the repo's own `.git/hooks/<name>` so husky etc. keep working |
+| `hooks/pre-commit` (bash) | One repo, via `install.sh` | Blocks secret-looking files (.env, .pem, .key, id_rsa, credentials), token-shaped strings, and files > 5 MB |
+| `hooks/pre-push` (bash) | One repo, via `install.sh` | Blocks force-push to `main`/`master` |
 | `agent-hooks/guard.js` | Agents with `PreToolUse` command hooks (see `adapters/`) | Denies force-push commands; asks before commit/push on a protected branch. Fails open |
 
 ## 2. Structure
 
 ```text
 agent-playbook/
+├── .github/
+│   └── muse-instructions.md   # Copilot entry point -> AGENTS.md
 ├── adapters/   # hook config snippets per tool
 │   └── claude-code-hooks.json
 ├── agent-hooks/   # optional agent-level guard
@@ -54,22 +66,31 @@ agent-playbook/
 │   ├── pre-rebase
 │   ├── prepare-commit-msg
 │   └── run-hook.js   # dispatcher: guard, then the repo's own .git/hooks/<name>
+├── hooks/   # per-project bash git hooks (install.sh)
+│   ├── pre-commit
+│   └── pre-push
 ├── lib/   # shared helpers for hooks/installer
 │   ├── config.js
 │   └── git.js
 ├── skills/   # SKILL.md skills (open format)
+│   ├── _template/   # starting point for new skills
+│   │   └── SKILL.md
 │   ├── change-ticket-release/
 │   │   ├── scripts/
 │   │   │   └── json-diff.js
 │   │   └── SKILL.md
-│   └── split-commit-pr/
-│       ├── scripts/
-│       │   └── pr-draft.js
-│       └── SKILL.md
+│   ├── split-commit-pr/
+│   │   ├── scripts/
+│   │   │   └── pr-draft.js
+│   │   └── SKILL.md
+│   └── README.md   # install + usage
 ├── .gitignore
+├── .muserules   # Cursor entry point -> AGENTS.md
 ├── AGENTS.md   # personal rules for every agent
+├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
+├── install.sh   # copies rules + hooks/ into one repo
 └── README.md   # install + usage
 ```
 
@@ -83,6 +104,7 @@ cd agent-playbook
 node install.js --dry-run     # preview
 node install.js               # link skills into detected tools
 node install.js --git-hooks   # optional: global git guardrails
+# or, per project with the bash hooks:  ./install.sh /path/to/project
 ```
 
 ```js
@@ -107,48 +129,123 @@ console.log("Wrote " + n + " files to " + path.resolve(out));
 
 ## 4. Files
 
+### `.github/muse-instructions.md`
+
+<!-- file: .github/muse-instructions.md -->
+~~~~markdown
+<!-- Copilot entry point. Source of truth is ../AGENTS.md — keep this in sync. -->
+
+Follow the rules in AGENTS.md at the repo root: think before coding,
+simplicity first, surgical changes, and goal-driven execution with
+verification. Match existing patterns, run tests after changes, and
+never include secrets or invent APIs.
+~~~~
+
 ### `.gitignore`
 
 <!-- file: .gitignore -->
 ~~~~
 config.local.json
 node_modules/
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
 .DS_Store
+~~~~
+
+### `.muserules`
+
+<!-- file: .muserules -->
+~~~~
+Follow AGENTS.md at the repo root as the source of truth.
+Think before coding, simplicity first, surgical changes only,
+goal-driven execution — verify with tests/build before finishing.
+Never include secrets. Match existing code patterns.
 ~~~~
 
 ### `AGENTS.md`
 
 <!-- file: AGENTS.md -->
 ~~~~markdown
-# Personal agent rules
+# AGENTS.md — Core Rules
 
-These rules apply to any AI coding agent (Claude Code, Codex, Copilot, Cursor, Gemini CLI, ...)
-working on my behalf. Project-level `AGENTS.md` / `CLAUDE.md` rules take precedence where they conflict.
+These rules apply to every AI coding agent working on my behalf,
+regardless of tool (Claude Code, Codex, Cursor, Copilot, Gemini CLI, etc.).
+Project-level `AGENTS.md` / `CLAUDE.md` rules take precedence where they conflict.
 
-## Before coding: 4 rules
+## The 4 Rules (Karpathy)
 
-1. **Think before coding.** State your assumptions first. If unsure, ask, don't guess.
-2. **Simplicity first.** Write the minimum code that solves the request. No extra features, no over-engineering.
-3. **Surgical changes.** Touch only what the request needs. Don't refactor unrelated code.
-4. **Goal-driven.** Turn the task into a verifiable check or test first, then code until it passes.
+1. **Think before coding**
+   Don't assume. Don't hide confusion. Surface tradeoffs, state
+   assumptions explicitly, and ask if something is genuinely unclear.
 
-## Git rules
+2. **Simplicity first**
+   Minimum code that solves the problem. No speculative features,
+   no abstractions for single-use code, no configurability that
+   wasn't requested.
 
-- **Never force-push** (`--force`, `-f`, `--force-with-lease`, `+refspec`) on any branch.
+3. **Surgical changes**
+   Touch only what the task requires. Match existing style. Don't
+   refactor unrelated code. Remove only imports/vars your change
+   made unused.
+
+4. **Goal-driven execution**
+   Turn tasks into verifiable goals ("add validation" → "write a
+   failing test for invalid input, then make it pass"). Loop until
+   verified, don't just declare success.
+
+## Working rules
+
+- Read the existing code before proposing a change.
+- Prefer the codebase's existing patterns, libraries, and helpers.
+- Run the relevant tests/build after a change; show the result.
+- Never invent an API, flag, or file path — check first.
+- Keep diffs small and reviewable. Explain *why*, not just *what*.
+- No secrets in code, prompts, commits, or this file.
+- No employer / company code or data in personal projects, and vice versa.
+
+## Stack defaults
+
+- **Java:** follow existing Spring/project conventions, no new deps without reason.
+- **TypeScript/React:** typed props, existing component patterns, no `any` shortcuts.
+- **Python:** idiomatic, type hints, dataclasses/pathlib where they clarify.
+- **AWS:** least-privilege IAM, never hardcode credentials, prefer IaC over console steps.
+
+## Git
+
+- **Never force-push** (`--force`, `-f`, `--force-with-lease`, `+refspec`) on any branch (hooks enforce this).
 - **Never rewrite pushed history** (no amend / rebase / reset + re-push / squash). Fix with a new commit; update from main with `git merge origin/main`.
+- Never commit `.env`, keys, tokens, or files >5 MB (hooks enforce this).
+- Never commit directly to `main` / `master`; branch first.
 - **Multiple logical commits, one PR**, unless I explicitly ask for separate PRs.
 - **Ask before committing** unless I already said "commit".
-- Never commit directly to `main` / `master`; branch first.
+- Commit messages: short imperative subject, body explains why when non-obvious.
 - PR title and description must summarise the **whole branch**, not the last commit (see the `split-commit-pr` skill).
 - Production changes only under a change ticket, on a branch named after it (see the `change-ticket-release` skill).
 
 ## Hygiene
 
-- Never commit secrets, tokens or credentials.
 - Never edit generated files by hand; regenerate them with the project's tool.
 - Don't suppress security-scanner findings to make a check pass.
 - Keep each file's existing formatting, indentation and encoding.
 - Report results concisely: what changed, how it was verified, anything risky.
+~~~~
+
+### `CLAUDE.md`
+
+<!-- file: CLAUDE.md -->
+~~~~markdown
+# CLAUDE.md
+
+All rules live in AGENTS.md — this file is only the Claude Code entry point.
+
+@AGENTS.md
+
+Claude-specific notes:
+- Prefer plan mode / thinking before large or ambiguous changes.
+- Verify with tests or a build before saying a task is done.
 ~~~~
 
 ### `README.md`
@@ -159,23 +256,42 @@ working on my behalf. Project-level `AGENTS.md` / `CLAUDE.md` rules take precede
 
 My portable AI coding workflow: skills, AGENTS.md rules, and git safety hooks that follow me across tools, teams, and companies.
 
-Works with any agent that reads `SKILL.md` skills and/or `AGENTS.md` (Claude Code, OpenAI Codex, GitHub Copilot, Cursor, Gemini CLI, …). The git guardrails work for every tool — and for humans — because they run inside git itself.
+One source of truth for how I want AI coding agents to work — usable in
+Claude Code, Codex, Cursor, Copilot, Gemini CLI and other tools, on any machine.
 
 ## What's inside
 
-| Path | What it is |
+| Folder / file | What it does |
 |---|---|
-| `AGENTS.md` | Personal rules: the 4 "before coding" rules, git rules, hygiene |
+| `AGENTS.md` | The core rules every agent should follow. Tool-agnostic. |
+| `CLAUDE.md` | Claude Code entry point — imports `AGENTS.md`, no duplication. |
+| `.github/muse-instructions.md` | Copilot entry point — same core rules. |
+| `.muserules` | Cursor entry point — same core rules. |
+| `skills/` | Reusable skills. Start from `skills/_template/SKILL.md`. |
 | `skills/split-commit-pr/` | Branch → multiple logical commits → one PR whose title/body summarise the whole branch. `scripts/pr-draft.js` builds the body |
 | `skills/change-ticket-release/` | Promote validated changes (e.g. stage → prod) under a change ticket, with a parity table. `scripts/json-diff.js` is a semantic JSON diff |
-| `git-hooks/` | Global git hooks: block force-push and direct pushes to protected branches, then chain to each repo's own hooks |
+| `hooks/` | Per-project bash git hooks: block secrets, large files, and force-pushes to main. Installed by `install.sh`. |
+| `install.sh` | Copies the rules + installs `hooks/` into one repo. |
+| `git-hooks/` | Global, cross-platform (Node) git hooks: block force-push and direct pushes to protected branches, then chain to each repo's own hooks. Enabled by `install.js --git-hooks`. |
 | `agent-hooks/guard.js` + `adapters/` | Optional agent-level guard for tools with `PreToolUse` command hooks |
-| `install.js` | Links skills into every detected tool, optionally enables the git hooks |
+| `install.js` | Links skills into every detected tool, optionally enables `git-hooks/` globally |
 | `config.example.json` | Defaults. Override per machine in `config.local.json` (gitignored) |
+| `PLAYBOOK.md` | Everything above in one file: catalogue, structure and full sources, plus an extractor |
 
-Requirements: Git and Node.js 16+. No npm dependencies.
+Requirements: Git; Node.js 16+ for the `*.js` tools (no npm dependencies); bash for `install.sh` / `hooks/`.
 
-## Install
+## Option A — use it in one project (`install.sh`)
+
+```bash
+git clone https://github.com/kxg50820/agent-playbook.git
+cd <your-project>
+../agent-playbook/install.sh .
+```
+
+Or manually: copy `AGENTS.md` to your project root and run
+`cp hooks/pre-commit hooks/pre-push .git/hooks/ && chmod +x .git/hooks/pre-*`
+
+## Option B — install for every tool and repo on this machine (`install.js`)
 
 ```bash
 git clone https://github.com/kxg50820/agent-playbook.git ~/agent-playbook
@@ -190,17 +306,13 @@ node install.js --git-hooks        # also enable the global git guardrails
 - Remove: `node install.js --uninstall`.
 - Windows: run the same commands in PowerShell or Git Bash. Skills are linked with directory junctions (no admin rights needed); git runs the hooks through Git for Windows' `sh`.
 
-### Rules (`AGENTS.md`)
-
-The installer prints where each tool reads global rules. Typical setup:
+Global rules: the installer prints where each tool reads them. Typical setup:
 - **Claude Code:** add `@<path-to>/agent-playbook/AGENTS.md` to `~/.claude/CLAUDE.md`.
 - **Codex:** copy or link `AGENTS.md` to `~/.codex/AGENTS.md`.
 - **Gemini CLI:** reference it from `~/.gemini/GEMINI.md`.
 - **Tools without global rules:** copy the relevant sections into the repo's `AGENTS.md`.
 
-Project rules win over these personal ones when they conflict.
-
-## Git guardrails
+### Global git guardrails (`git-hooks/`)
 
 Enabled with `node install.js --git-hooks` (sets `git config --global core.hooksPath`). The `pre-push` guard blocks:
 
@@ -213,9 +325,9 @@ Per-repo opt-out for direct pushes (e.g. personal repos):
 git config agentPlaybook.allowProtectedPush true
 ```
 
-Every hook stub chains to the repo's own `.git/hooks/<name>`, so tools like husky v4 keep working. Repos that set a local `core.hooksPath` (husky v5+, lefthook…) use their own hooks and skip these.
+Every hook stub chains to the repo's own `.git/hooks/<name>`, so tools like husky v4 — and `hooks/` installed by `install.sh` — keep working. Repos that set a local `core.hooksPath` (husky v5+, lefthook…) use their own hooks and skip these.
 
-## Config
+### Config
 
 Copy `config.example.json` to `config.local.json` and adjust:
 
@@ -226,9 +338,22 @@ Copy `config.example.json` to `config.local.json` and adjust:
 | `commitFooter` / `prFooter` | empty | reference for commit/PR footers (pass to `pr-draft.js --footer`) |
 | `extraTools` | none | extra tool folders for `install.js`, e.g. `{ "mytool": { "dir": ".mytool", "skills": "skills", "rules": "AGENTS.md" } }` |
 
+## Principles
+
+1. **One source, many tools** — edit `AGENTS.md`, the tool files just point to it.
+2. **No secrets, ever** — hooks block `.env`, keys, and token-shaped strings.
+3. **No company code/data** — this playbook is personal workflow only, safe to
+   carry between employers. Never paste employer code into it.
+4. **Read before you install** — read any third-party skill's SKILL.md first.
+
 ## Adding a skill
 
-Create `skills/<name>/SKILL.md` with `name` and `description` frontmatter, keep scripts in `skills/<name>/scripts/` and self-contained (Node, no dependencies), and don't name any specific tool, company or internal system. Run `node install.js` again to link it.
+Start from `skills/_template/SKILL.md`. Give it `name` and `description` frontmatter, keep scripts in `skills/<name>/scripts/` and self-contained (Node, no dependencies), and don't name any specific tool, company or internal system. Run `node install.js` again to link it.
+
+## Stack notes
+
+Built for my day-to-day: Java, TypeScript/React, Python, and AWS.
+Language-specific guidance lives in `AGENTS.md` and can be trimmed per project.
 ~~~~
 
 ### `adapters/claude-code-hooks.json`
@@ -582,6 +707,65 @@ if (commonDir) {
 process.exit(0);
 ~~~~
 
+### `hooks/pre-commit`
+
+<!-- file: hooks/pre-commit -->
+~~~~sh
+#!/usr/bin/env bash
+# Playbook pre-commit: block secrets and large files.
+set -euo pipefail
+
+fail=0
+
+# 1. Block obviously secret files
+if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$|id_rsa|credentials'; then
+  echo "✗ Blocked: staged file looks like a secret/credential file."
+  fail=1
+fi
+
+# 2. Block token-shaped strings in staged changes
+if git diff --cached | grep -E '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'; then
+  echo "✗ Blocked: staged change contains a token / private key pattern."
+  fail=1
+fi
+
+# 3. Block files > 5 MB
+for f in $(git diff --cached --name-only --diff-filter=ACM); do
+  [ -f "$f" ] || continue
+  size=$(wc -c < "$f")
+  if [ "$size" -gt 5242880 ]; then
+    echo "✗ Blocked: $f is $((size/1024/1024)) MB (>5 MB limit)."
+    fail=1
+  fi
+done
+
+[ "$fail" -eq 0 ] || { echo "Commit aborted by agent-playbook pre-commit hook."; exit 1; }
+exit 0
+~~~~
+
+### `hooks/pre-push`
+
+<!-- file: hooks/pre-push -->
+~~~~sh
+#!/usr/bin/env bash
+# Playbook pre-push: block force-pushes to main/master.
+set -euo pipefail
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      # Force push = remote sha is not an ancestor of local sha
+      if [ "$remote_sha" != "0000000000000000000000000000000000000000" ] && \
+         ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+        echo "✗ Blocked: force-push to ${remote_ref#refs/heads/} is not allowed."
+        exit 1
+      fi
+      ;;
+  esac
+done
+exit 0
+~~~~
+
 ### `install.js`
 
 <!-- file: install.js -->
@@ -658,7 +842,10 @@ function removeLink(p) {
   }
 }
 
-const skills = fs.readdirSync(SKILLS).filter((n) => fs.existsSync(path.join(SKILLS, n, "SKILL.md")));
+// Folders starting with "_" (e.g. _template) are not installed.
+const skills = fs
+  .readdirSync(SKILLS)
+  .filter((n) => !n.startsWith("_") && fs.existsSync(path.join(SKILLS, n, "SKILL.md")));
 const tools = Object.keys(TOOLS).filter((t) => (!ONLY || ONLY.includes(t)) && fs.existsSync(path.join(HOME, TOOLS[t].dir)));
 
 if (ONLY) for (const t of ONLY) if (!TOOLS[t]) console.warn("Unknown tool '" + t + "'. Known: " + Object.keys(TOOLS).join(", "));
@@ -712,6 +899,36 @@ if (!UNINSTALL) {
   console.log("\nOptional agent-level guard (Claude Code-style hooks): see adapters/claude-code-hooks.json");
   console.log("  command: node \"" + path.join(ROOT, "agent-hooks", "guard.js") + "\"");
 }
+~~~~
+
+### `install.sh`
+
+<!-- file: install.sh -->
+~~~~sh
+#!/usr/bin/env bash
+# Install the playbook into a target project.
+# Usage: ./install.sh /path/to/project   (default: current directory)
+set -euo pipefail
+
+TARGET="${1:-.}"
+SRC="$(cd "$(dirname "$0")" && pwd)"
+
+if [ ! -d "$TARGET/.git" ]; then
+  echo "Warning: $TARGET is not a git repo — copying rules, skipping hooks."
+fi
+
+cp "$SRC/AGENTS.md" "$TARGET/AGENTS.md"
+cp "$SRC/CLAUDE.md" "$TARGET/CLAUDE.md"
+echo "Copied AGENTS.md + CLAUDE.md -> $TARGET"
+
+if [ -d "$TARGET/.git" ]; then
+  cp "$SRC/hooks/pre-commit" "$TARGET/.git/hooks/pre-commit"
+  cp "$SRC/hooks/pre-push" "$TARGET/.git/hooks/pre-push"
+  chmod +x "$TARGET/.git/hooks/pre-commit" "$TARGET/.git/hooks/pre-push"
+  echo "Installed git hooks -> $TARGET/.git/hooks/"
+fi
+
+echo "Done. Review AGENTS.md in the target and trim anything project-irrelevant."
 ~~~~
 
 ### `lib/config.js`
@@ -778,6 +995,46 @@ function remoteInfo(remote, cwd) {
 }
 
 module.exports = { git, currentBranch, remoteInfo };
+~~~~
+
+### `skills/README.md`
+
+<!-- file: skills/README.md -->
+~~~~markdown
+# Skills
+
+One folder per skill, each with a `SKILL.md` (see `_template/`).
+
+Rules for adding a skill here:
+1. Read its full SKILL.md/source before adding — no blind installs.
+2. Note where it came from (repo URL + date) at the top of the skill.
+3. Keep it office-safe: a prompt/copy-paste version first, install second.
+4. Remove skills you no longer use — a short playbook gets followed.
+~~~~
+
+### `skills/_template/SKILL.md`
+
+<!-- file: skills/_template/SKILL.md -->
+~~~~markdown
+---
+name: my-skill-name
+description: One line — what this skill does and when an agent should use it.
+---
+
+# My Skill
+
+## When to use
+Describe the trigger clearly, so an agent picks this up at the right moment.
+
+## Steps
+1. ...
+2. ...
+3. Verify: ...
+
+## Guardrails
+- Read this file fully before running any install/command in it.
+- No company code or data to external tools.
+- Show the result, don't just claim success.
 ~~~~
 
 ### `skills/change-ticket-release/SKILL.md`
