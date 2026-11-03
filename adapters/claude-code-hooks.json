@@ -1,0 +1,17 @@
+{
+  "_comment": "Merge the 'hooks' block into your tool's user settings (e.g. ~/.claude/settings.json). Replace <PLAYBOOK> with the absolute path of this repo.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"<PLAYBOOK>/agent-hooks/guard.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

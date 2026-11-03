@@ -1,0 +1,3 @@
+#!/bin/sh
+# Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/prepare-commit-msg).
+exec node "$(dirname "$0")/run-hook.js" prepare-commit-msg "$@"
