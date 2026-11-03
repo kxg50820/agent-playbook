@@ -1,0 +1,7 @@
+{
+  "ticketPattern": "^[A-Z][A-Z0-9]+-?[0-9]+$",
+  "ticketExample": "CR-1234",
+  "protectedBranches": ["main", "master"],
+  "commitFooter": "",
+  "prFooter": ""
+}
