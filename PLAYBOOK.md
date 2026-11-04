@@ -54,6 +54,11 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|
 | `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
+
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
@@ -65,7 +70,7 @@ This single file contains the catalogue, the folder structure and the full sourc
 
 ## 2. Structure
 
-48 files total, including `PLAYBOOK.md`.
+50 files total, including `PLAYBOOK.md`.
 
 ```text
 agent-playbook/
@@ -134,12 +139,15 @@ agent-playbook/
 ├── templates/   # starting points (outside skills/ so the plugin loader skips them)
 │   └── skill-template/
 │       └── SKILL.md
+├── test/   # node:test checks for the guards, pre-commit scan and PR draft
+│   └── guards.test.js
 ├── .gitignore
 ├── .muserules   # Cursor entry point -> AGENTS.md
 ├── AGENTS.md   # personal rules for every agent
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
+├── package.json   # `npm test` only, no dependencies
 ├── PLAYBOOK.md
 └── README.md   # install + usage
 ```
@@ -239,11 +247,6 @@ These rules apply to every AI coding agent working on my behalf, regardless of t
 
 This playbook includes the Ponytail skill (skills/ponytail/SKILL.md, from DietrichGebert/ponytail, MIT). Use it on coding tasks: the best code is the code never written. Before writing, take the first option that fully works — (1) does it need to exist at all (YAGNI), (2) already in this codebase, (3) standard library / platform feature, (4) an already-installed dependency, (5) one line a reader gets at a glance, (6) otherwise the minimum code that works. Never cut validation at trust boundaries, error handling that prevents data loss, security, or accessibility. A deliberate shortcut with a known limit gets a comment in the form `shortcut: <the limit>, <when to upgrade>`. Levels lite / full (default) / ultra follow the skill. If AGENTS.md and the skill ever conflict, AGENTS.md wins.
 
-
-
-
-
-
 ## Working rules
 
 - Read the existing code before proposing a change.
@@ -280,28 +283,6 @@ This playbook includes the Ponytail skill (skills/ponytail/SKILL.md, from Dietri
 - If a hook or tool complains about my changes, fix the issue instead of disabling it.
 - Never use `git reset --hard`.
 - If a test fails after a change, stop and fix the test before continuing.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ~~~~
 
 ### `CLAUDE.md`
@@ -393,7 +374,7 @@ The tool downloads the plugin and registers the skills and the guard hook for yo
 ### From a clone — one machine, every tool
 
 ```bash
-node install.js --git-hooks --agent-guard
+node install.js --git-hooks
 ```
 
 This installs the skills, the `AGENTS.md` rules and the guardrails globally, so every tool on the machine picks them up. The installer never deletes your existing `AGENTS.md`, `CLAUDE.md`, `.muserules`, `.github/muse-instructions.md` or `.git/hooks` files without asking — it backs them up first.
@@ -446,12 +427,14 @@ Two global layers, plus a per-project one:
 - **Agent hooks (`agent-hooks/guard.js`, wired via `adapters/claude-code-hooks.json`)** — run before the agent's Bash / PowerShell tool call, before git is even invoked: force-pushes are blocked, and a commit or push on a protected branch asks first.
 - **Project hooks (`hooks/`)** — per-project bash hooks for a repo's `.git/hooks`. The pre-commit hook blocks secret files, token patterns, and files over 5 MB.
 
-Install them globally, or for one repo only:
+The plugin install wires the agent hook for you. For the other layers:
 
 ```bash
-node install.js --git-hooks --agent-guard   # every repo on this machine
-node install.js --git-hooks                 # current repo only
+node install.js --git-hooks                        # git hooks, every repo on this machine
+cp hooks/pre-commit .git/hooks/pre-commit          # secret scan, current repo only
 ```
+
+Without the plugin, merge `adapters/claude-code-hooks.json` into your tool's settings to get the agent hook.
 
 To change what counts as protected — or to allow protected pushes on one machine — copy `config.example.json` to `config.local.json` and edit it. The local file is gitignored.
 
@@ -548,7 +531,12 @@ function main() {
   const cmd = String((payload.tool_input || {}).command || "");
   if (!cmd) return;
 
-  for (const seg of cmd.split(/&&|\|\||;|\||\n/)) {
+  // Judge the command, not the words inside quotes (a commit message may mention "git push --force").
+  const bare = cmd.replace(/(["'])(?:\\.|(?!\1).)*\1/g, '""');
+  // `git`, optional global options (git -C dir, git -c k=v), then the subcommand.
+  const GIT_SUB = /\bgit\b(?:\s+-\S+(?:\s+[^\s-]\S*)?)*\s+(commit|push)\b/;
+
+  for (const seg of bare.split(/&&|\|\||;|\||\n/)) {
     if (!/\bgit\b.*\bpush\b/.test(seg)) continue;
     const forceFlag = /(^|\s)(--force(-with-lease|-if-includes)?(=\S*)?|-[a-zA-Z]*f[a-zA-Z]*)(?=\s|$)/.test(seg);
     const plusRefspec = /\s\+\S+/.test(seg);
@@ -557,7 +545,7 @@ function main() {
     }
   }
 
-  if (/\bgit\s+(commit|push)\b/.test(cmd)) {
+  if (GIT_SUB.test(bare)) {
     const protectedBranches = loadConfig().protectedBranches || ["main", "master"];
     const branch = currentBranch(payload.cwd);
     const target = protectedBranches.find(
@@ -580,11 +568,7 @@ process.exit(0);
 <!-- file: config.example.json -->
 ~~~~json
 {
-  "ticketPattern": "^[A-Z][A-Z0-9]+-?[0-9]+$",
-  "ticketExample": "CR-1234",
-  "protectedBranches": ["main", "master"],
-  "commitFooter": "",
-  "prFooter": ""
+  "protectedBranches": ["main", "master"]
 }
 ~~~~
 
@@ -852,13 +836,14 @@ set -euo pipefail
 fail=0
 
 # 1. Block obviously secret files
-if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$|id_rsa|credentials'; then
+if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$|id_rsa|(^|/)credentials(\.[^/]*)?$' | grep -vE '\.(example|sample|template)$'; then
   echo "✗ Blocked: staged file looks like a secret/credential file."
   fail=1
 fi
 
-# 2. Block token-shaped strings in staged changes
-if git diff --cached | grep -E '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'; then
+# 2. Block token-shaped strings in ADDED lines only (removing a leaked secret must stay possible).
+#    -q: never print the matched line, it would copy the secret into logs and agent context.
+if git diff --cached -U0 | grep -E '^\+' | grep -vE '^\+\+\+ ' | grep -qE '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'; then
   echo "✗ Blocked: staged change contains a token / private key pattern."
   fail=1
 fi
@@ -953,10 +938,7 @@ function removeLink(p) {
   }
 }
 
-// Folders starting with "_" (e.g. _template) are not installed.
-const skills = fs
-  .readdirSync(SKILLS)
-  .filter((n) => !n.startsWith("_") && fs.existsSync(path.join(SKILLS, n, "SKILL.md")));
+const skills = fs.readdirSync(SKILLS).filter((n) => fs.existsSync(path.join(SKILLS, n, "SKILL.md")));
 const tools = Object.keys(TOOLS).filter((t) => (!ONLY || ONLY.includes(t)) && fs.existsSync(path.join(HOME, TOOLS[t].dir)));
 
 if (ONLY) for (const t of ONLY) if (!TOOLS[t]) console.warn("Unknown tool '" + t + "'. Known: " + Object.keys(TOOLS).join(", "));
@@ -1028,6 +1010,8 @@ function readJson(file) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch (e) {
+    // A missing file is normal; a broken one must not silently drop protections.
+    if (e.code !== "ENOENT") process.stderr.write("[agent-playbook] ignoring " + file + ": " + e.message + "\n");
     return {};
   }
 }
@@ -1066,16 +1050,20 @@ function currentBranch(cwd) {
   return git(["branch", "--show-current"], cwd) || "";
 }
 
-// "git@host:owner/repo.git" | "https://host/owner/repo.git" -> { host, slug, web }
-function remoteInfo(remote, cwd) {
-  const url = git(["remote", "get-url", remote || "origin"], cwd);
-  if (!url) return null;
-  const m = url.match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](?:\d+\/)?(.+?)(?:\.git)?\/?$/i);
-  if (!m) return null;
-  return { host: m[1], slug: m[2], web: "https://" + m[1] + "/" + m[2] };
-}
+module.exports = { git, currentBranch };
+~~~~
 
-module.exports = { git, currentBranch, remoteInfo };
+### `package.json`
+
+<!-- file: package.json -->
+~~~~json
+{
+  "name": "agent-playbook",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
 ~~~~
 
 ### `skills/README.md`
@@ -1735,20 +1723,6 @@ Jira ticket first. If you didn't give one and the branch name doesn't have one, 
 3. If the user gave a different name, use that name exactly.
 4. Run `git status` to confirm the tree is clean.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## 2. Work and check
 
 1. Implement the change with small, reviewable diffs.
@@ -1785,26 +1759,6 @@ Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The sc
 2. If `gh` is not available, print the exact PR creation URL the script prints and the full PR title and body, so the user can paste them.
 3. Do not edit the PR body by hand unless the user asks for a change. If they do, make the change, then regenerate the body with the script.
 4. Never open a PR per commit unless the user explicitly asks for separate PRs.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ~~~~
 
 ### `skills/split-commit-pr/scripts/pr-draft.js`
@@ -1848,7 +1802,16 @@ function defaultBranch(remote) {
 function remoteInfo(remote) {
   const url = git(["remote", "get-url", remote], true);
   const m = url.match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](?:\d+\/)?(.+?)(?:\.git)?\/?$/i);
-  return m ? { host: m[1], slug: m[2], web: "https://" + m[1] + "/" + m[2] } : null;
+  if (!m) return null;
+  let host = m[1];
+  if (!host.includes(".")) {
+    // An SSH alias (git@github-personal:owner/repo): ask ssh for the real host name.
+    const r = spawnSync("ssh", ["-G", host], { encoding: "utf8", windowsHide: true });
+    const real = r.status === 0 ? (r.stdout.match(/^hostname (\S+)/m) || [])[1] : "";
+    if (!real || !real.includes(".")) return null;
+    host = real;
+  }
+  return { host, slug: m[2], web: "https://" + host + "/" + m[2] };
 }
 const remote = arg("remote", "origin");
 const base = arg("base", defaultBranch(remote));
@@ -1862,62 +1825,11 @@ if (!title || !summary) {
   process.exit(1);
 }
 const branch = git(["branch", "--show-current"]);
-const ticketFromRefs = (refs.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
-const ticketFromBranch = (branch.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
+// A ticket starts with a letter (ABC-123). Digits-first matches like 2024-10 are not tickets.
+// In a branch name it leads the name (ABC-123-slug, feature/ABC-123-slug), so SHA-256 or UTF-8 mid-name don't count.
+const ticketFromRefs = (refs.match(/\b[A-Z][A-Z0-9]+-[0-9]+\b/) || [])[0] || "";
+const ticketFromBranch = (branch.match(/(?:^|\/)([A-Z][A-Z0-9]+-[0-9]+)(?=$|[-_\/])/) || [])[1] || "";
 const ticket = ticketFromRefs || ticketFromBranch;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const baseRef = remote + "/" + base;
 const commits = git(["log", "--reverse", "--format=%h%x09%s", baseRef + "..HEAD"])
@@ -1974,61 +1886,6 @@ if (info) {
 } else {
   console.log("\nNo parsable '" + remote + "' remote; paste the body from " + out);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ~~~~
 
 ### `templates/skill-template/SKILL.md`
@@ -2054,6 +1911,109 @@ Describe the trigger clearly, so an agent picks this up at the right moment.
 - Read this file fully before running any install/command in it.
 - No company code or data to external tools.
 - Show the result, don't just claim success.
+~~~~
+
+### `test/guards.test.js`
+
+<!-- file: test/guards.test.js -->
+~~~~js
+"use strict";
+// Run: npm test   (built-in node:test, no dependencies)
+const test = require("node:test");
+const assert = require("node:assert");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { spawnSync } = require("child_process");
+
+const ROOT = path.join(__dirname, "..");
+
+// --- agent guard: what does it decide for a shell command? ---
+function guard(command, cwd) {
+  const r = spawnSync("node", [path.join(ROOT, "agent-hooks", "guard.js")], {
+    input: JSON.stringify({ tool_input: { command }, cwd: cwd || os.tmpdir() }),
+    encoding: "utf8",
+  });
+  return r.stdout ? JSON.parse(r.stdout).hookSpecificOutput.permissionDecision : "allow";
+}
+
+test("guard denies real force-pushes", () => {
+  for (const c of ["git push --force", "git push -f origin main", "git push origin main --force-with-lease", "git push origin +main", "git -C . push -f"]) {
+    assert.strictEqual(guard(c), "deny", c);
+  }
+});
+
+test("guard allows plain pushes and text that only mentions force-push", () => {
+  for (const c of ["git push origin feature", 'git commit -m "docs: why git push --force is blocked"', "git status"]) {
+    assert.strictEqual(guard(c), "allow", c);
+  }
+});
+
+test("guard asks before committing on a protected branch, also with git -C", () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "guard-"));
+  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: repo });
+  assert.strictEqual(guard("git commit -m x", repo), "ask");
+  assert.strictEqual(guard("git -C . commit -m x", repo), "ask");
+});
+
+// --- pre-commit secret scan (needs bash; skipped where it is missing) ---
+const bash = ["bash", "C:\\Program Files\\Git\\bin\\bash.exe"].find((b) => spawnSync(b, ["-c", "true"]).status === 0);
+
+function precommit(files, base) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pc-"));
+  const run = (...a) => spawnSync("git", a, { cwd: dir, encoding: "utf8" });
+  run("init", "-q");
+  run("config", "user.email", "t@t.t");
+  run("config", "user.name", "t");
+  if (base) {
+    for (const [f, c] of Object.entries(base)) fs.writeFileSync(path.join(dir, f), c);
+    run("add", "-A");
+    run("-c", "core.hooksPath=" + os.devNull, "commit", "-qm", "base");
+  }
+  for (const [f, c] of Object.entries(files)) fs.writeFileSync(path.join(dir, f), c);
+  run("add", "-A");
+  return spawnSync(bash, [path.join(ROOT, "hooks", "pre-commit").replace(/\\/g, "/")], { cwd: dir, encoding: "utf8" });
+}
+
+const TOKEN = "ghp_" + "a".repeat(36);
+
+test("pre-commit blocks a new token and never prints it", { skip: !bash }, () => {
+  const r = precommit({ "app.cfg": "TOKEN=" + TOKEN + "\n" });
+  assert.strictEqual(r.status, 1);
+  assert.ok(!(r.stdout + r.stderr).includes(TOKEN));
+});
+
+test("pre-commit lets you commit the removal of a token", { skip: !bash }, () => {
+  const r = precommit({ "app.cfg": "TOKEN=removed\n" }, { "app.cfg": "TOKEN=" + TOKEN + "\n" });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+});
+
+test("pre-commit allows .env.example but blocks .env", { skip: !bash }, () => {
+  assert.strictEqual(precommit({ ".env.example": "A=1\n" }).status, 0);
+  assert.strictEqual(precommit({ ".env": "A=1\n" }).status, 1);
+});
+
+// --- PR draft: ticket detection ---
+test("pr-draft does not mistake dates or standards for Jira tickets", () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "pr-"));
+  const run = (...a) => spawnSync("git", a, { cwd: repo, encoding: "utf8" });
+  run("init", "-q", "-b", "main");
+  run("config", "user.email", "t@t.t");
+  run("config", "user.name", "t");
+  fs.writeFileSync(path.join(repo, "a"), "1");
+  run("add", "-A");
+  run("commit", "-qm", "base");
+  run("update-ref", "refs/remotes/origin/main", "HEAD");
+  const script = path.join(ROOT, "skills", "split-commit-pr", "scripts", "pr-draft.js");
+  for (const [branch, expected] of [["release-2024-10", false], ["docs-SHA-256-note", false], ["ABC-123-fix", true]]) {
+    run("checkout", "-q", "-B", branch, "main");
+    fs.writeFileSync(path.join(repo, "b"), branch);
+    run("add", "-A");
+    run("commit", "-qm", "change");
+    const r = spawnSync("node", [script, "--title", "t", "--summary", "s"], { cwd: repo, encoding: "utf8" });
+    assert.strictEqual(!/WARNING: No Jira ticket/.test(r.stdout + r.stderr), expected, branch + "\n" + r.stdout + r.stderr);
+  }
+});
 ~~~~
 
 ### `.agents/plugins/marketplace.json`
