@@ -29,7 +29,12 @@ function main() {
   const cmd = String((payload.tool_input || {}).command || "");
   if (!cmd) return;
 
-  for (const seg of cmd.split(/&&|\|\||;|\||\n/)) {
+  // Judge the command, not the words inside quotes (a commit message may mention "git push --force").
+  const bare = cmd.replace(/(["'])(?:\\.|(?!\1).)*\1/g, '""');
+  // `git`, optional global options (git -C dir, git -c k=v), then the subcommand.
+  const GIT_SUB = /\bgit\b(?:\s+-\S+(?:\s+[^\s-]\S*)?)*\s+(commit|push)\b/;
+
+  for (const seg of bare.split(/&&|\|\||;|\||\n/)) {
     if (!/\bgit\b.*\bpush\b/.test(seg)) continue;
     const forceFlag = /(^|\s)(--force(-with-lease|-if-includes)?(=\S*)?|-[a-zA-Z]*f[a-zA-Z]*)(?=\s|$)/.test(seg);
     const plusRefspec = /\s\+\S+/.test(seg);
@@ -38,7 +43,7 @@ function main() {
     }
   }
 
-  if (/\bgit\s+(commit|push)\b/.test(cmd)) {
+  if (GIT_SUB.test(bare)) {
     const protectedBranches = loadConfig().protectedBranches || ["main", "master"];
     const branch = currentBranch(payload.cwd);
     const target = protectedBranches.find(
