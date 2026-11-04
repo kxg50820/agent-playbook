@@ -79,6 +79,11 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|
 | `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
+
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
@@ -103,6 +108,8 @@ agent-playbook/
 ├── .codex-plugin/
 │   └── plugin.json
 ├── .github/
+│   ├── workflows/
+│   │   └── plugin-version.yml   # CI: tests + version-bump check
 │   ├── workflows/
 │   │   └── plugin-version.yml   # CI: tests + version-bump check
 │   └── muse-instructions.md   # Copilot entry point -> AGENTS.md
@@ -166,6 +173,7 @@ agent-playbook/
 ├── test/   # node:test checks for the guards, pre-commit scan and PR draft
 │   ├── guards.test.js
 │   ├── version-bump.test.js
+│   ├── version-bump.test.js
 │   └── versions.test.js
 ├── .gitignore
 ├── .muserules   # Cursor entry point -> AGENTS.md
@@ -173,6 +181,7 @@ agent-playbook/
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
+├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
@@ -434,9 +443,11 @@ codex plugin marketplace add kxg50820/agent-playbook
 codex plugin add agent-playbook@agent-playbook
 ```
 
-The tool downloads the plugin and registers the skills and the guard hook for you; updates arrive through the tool as well. Nothing is cloned and nothing needs editing.
+The tool downloads the plugin and registers the skills and the guard hook for you. Nothing is cloned and nothing needs editing.
 
-**Staying up to date:** installed plugins are cached per version. In Claude Code open `/plugin`, go to Marketplaces, pick `agent-playbook` and turn on auto-update; it then fetches new releases at startup. To update by hand: `/plugin marketplace update agent-playbook`.
+> **Turn on auto-update (Claude Code, once per machine).** Auto-update is usually **off by default** for marketplaces you add yourself, so without this step you may keep the version you installed and miss fixes, including guard fixes. Open `/plugin`, go to the **Marketplaces** tab, pick `agent-playbook` and enable auto-update. Claude Code then fetches new releases each time it starts. To update by hand instead: `/plugin marketplace update agent-playbook`, then start a new session.
+>
+> To see which version you have, open `/plugin`; the current release is in `.claude-plugin/plugin.json`.
 
 **Maintainers:** bump `version` in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` in every change users should receive (`npm test` fails if the three differ). Without a bump, installed copies do not update, so CI (`.github/workflows/plugin-version.yml`) fails any PR or push to `main` that changes shipped files (skills, hooks, `lib/`, `install.js`, `AGENTS.md`, config) without one. Check locally with `node scripts/check-version-bump.js origin/main`. Docs, tests, CI and templates need no bump.
 
