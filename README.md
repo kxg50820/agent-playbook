@@ -59,40 +59,43 @@ node ../agent-playbook/install.js
 
 Or manually: copy `AGENTS.md`, `CLAUDE.md` and any skill folders you need into the project, then, if you use git, run `cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit`.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Skills
 
 Current skills, and where to find them:
 
 - `split-commit-pr` — Split a branch into small, logical commits and open one PR whose title and body summarise the whole branch. See `skills/split-commit-pr/SKILL.md`.
 - `change-ticket-release` — Compare two environments' JSON, file a change ticket, compare the before/after JSON with the semantic diff, get the parity table approved, then release. See `skills/change-ticket-release/SKILL.md`.
+- `ponytail` — Lazy senior dev mode: smallest complete change, YAGNI ladder, levels lite/full/ultra. See `skills/ponytail/SKILL.md`, imported from DietrichGebert/ponytail under MIT.
 
 Skills are read-only building blocks: the agent should not change a skill's steps for one task. To add a skill, read the whole `SKILL.md` first, then follow `skills/README.md` (for example: offer an office-safe prompt first, note the source URL and date, and remove any skill you no longer use).
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
