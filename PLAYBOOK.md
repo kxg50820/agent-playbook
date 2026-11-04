@@ -12,7 +12,8 @@ This single file contains the catalogue, the folder structure and the full sourc
 | Simplicity first | Minimum code that solves the request |
 | Surgical changes | Touch only what the request needs |
 | Goal-driven | Define a verifiable check first, code until it passes |
-| Git | Never force-push or rewrite pushed history; multiple commits, one PR; ask before committing; never commit to main/master |
+| Git | Jira ticket first; never force-push or rewrite pushed history; multiple commits, one PR; ask before committing; never commit to main/master |
+| Ponytail | Smallest complete change; lite / full / ultra levels |
 | Hygiene | No secrets, don't hand-edit generated files, don't suppress scanner findings, keep file formatting/encoding |
 
 ### Tool entry points
@@ -25,20 +26,22 @@ This single file contains the catalogue, the folder structure and the full sourc
 ### Skills (`skills/`)
 | Skill | Use when | Helper script |
 |---|---|---|
-| `split-commit-pr` | Create a branch, split work into logical commits, push (never force), open ONE PR whose title/body cover the whole branch | `scripts/pr-draft.js` — builds the PR body from all commits, prints `gh` commands and a prefilled compare URL |
+| `split-commit-pr` | Create a branch, split work into logical commits, push (never force), open ONE PR whose title/body cover the whole branch; ask for the Jira ticket before committing if missing | `scripts/pr-draft.js` — builds the PR body from all commits, prints `gh` commands and a prefilled compare URL |
 | `_template` | Starting point for a new skill (not installed) | — |
 | `change-ticket-release` | Promote validated changes (e.g. stage → prod) under a change ticket: ask ticket first, branch named after it, parity table, copy only approved items | `scripts/json-diff.js` — semantic JSON diff (ignores key order/BOM, matches array items by id) |
+| `ponytail` | Coding tasks where the smallest complete change is preferred | — |
 
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
 | `git-hooks/pre-push` → `guards/pre-push.js` | git itself (any tool or human), via global `core.hooksPath` | Blocks force-push, deleting protected branches, direct push to `main`/`master` (per-repo opt-in: `git config agentPlaybook.allowProtectedPush true`) |
 | `git-hooks/<other hooks>` | git | No guard; just chain to the repo's own `.git/hooks/<name>` so husky etc. keep working |
-| `hooks/pre-commit` (bash) | One repo, via `install.sh` | Blocks secret-looking files (.env, .pem, .key, id_rsa, credentials), token-shaped strings, and files > 5 MB |
-| `hooks/pre-push` (bash) | One repo, via `install.sh` | Blocks force-push to `main`/`master` |
+| `hooks/pre-commit` (bash) | One repo, copied to `.git/hooks/pre-commit` | Blocks secret-looking files (.env, .pem, .key, id_rsa, credentials), token-shaped strings, and files > 5 MB |
 | `agent-hooks/guard.js` | Agents with `PreToolUse` command hooks (see `adapters/`) | Denies force-push commands; asks before commit/push on a protected branch. Fails open |
 
 ## 2. Structure
+
+37 files total, including `PLAYBOOK.md`.
 
 ```text
 agent-playbook/
@@ -62,13 +65,12 @@ agent-playbook/
 │   ├── pre-auto-gc
 │   ├── pre-commit
 │   ├── pre-merge-commit
+│   ├── prepare-commit-msg
 │   ├── pre-push
 │   ├── pre-rebase
-│   ├── prepare-commit-msg
 │   └── run-hook.js   # dispatcher: guard, then the repo's own .git/hooks/<name>
-├── hooks/   # per-project bash git hooks (install.sh)
-│   ├── pre-commit
-│   └── pre-push
+├── hooks/   # per-project bash git hooks
+│   └── pre-commit
 ├── lib/   # shared helpers for hooks/installer
 │   ├── config.js
 │   └── git.js
@@ -78,6 +80,8 @@ agent-playbook/
 │   ├── change-ticket-release/
 │   │   ├── scripts/
 │   │   │   └── json-diff.js
+│   │   └── SKILL.md
+│   ├── ponytail/
 │   │   └── SKILL.md
 │   ├── split-commit-pr/
 │   │   ├── scripts/
@@ -90,7 +94,7 @@ agent-playbook/
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
-├── install.sh   # copies rules + hooks/ into one repo
+├── PLAYBOOK.md
 └── README.md   # install + usage
 ```
 
@@ -104,7 +108,6 @@ cd agent-playbook
 node install.js --dry-run     # preview
 node install.js               # link skills into detected tools
 node install.js --git-hooks   # optional: global git guardrails
-# or, per project with the bash hooks:  ./install.sh /path/to/project
 ```
 
 ```js
@@ -171,30 +174,30 @@ Never include secrets. Match existing code patterns.
 ~~~~markdown
 # AGENTS.md — Core Rules
 
-These rules apply to every AI coding agent working on my behalf,
-regardless of tool (Claude Code, Codex, Cursor, Copilot, Gemini CLI, etc.).
-Project-level `AGENTS.md` / `CLAUDE.md` rules take precedence where they conflict.
+These rules apply to every AI coding agent working on my behalf, regardless of tool (Claude Code, Codex, Cursor, Copilot, Gemini CLI, etc.). Project-level `AGENTS.md` / `CLAUDE.md` rules take precedence where they conflict.
 
 ## The 4 Rules (Karpathy)
 
 1. **Think before coding**
-   Don't assume. Don't hide confusion. Surface tradeoffs, state
-   assumptions explicitly, and ask if something is genuinely unclear.
+   Don't assume. Don't hide confusion. Surface tradeoffs, state assumptions explicitly, and ask if something is genuinely unclear.
 
 2. **Simplicity first**
-   Minimum code that solves the problem. No speculative features,
-   no abstractions for single-use code, no configurability that
-   wasn't requested.
+   Minimum code that solves the problem. No speculative features, no abstractions for single-use code, no configurability that wasn't requested.
 
 3. **Surgical changes**
-   Touch only what the task requires. Match existing style. Don't
-   refactor unrelated code. Remove only imports/vars your change
-   made unused.
+   Touch only what the task requires. Match existing style. Don't refactor unrelated code. Remove only imports/vars your change made unused.
 
 4. **Goal-driven execution**
-   Turn tasks into verifiable goals ("add validation" → "write a
-   failing test for invalid input, then make it pass"). Loop until
-   verified, don't just declare success.
+   Turn tasks into verifiable goals ("add validation" → "write a failing test for invalid input, then make it pass"). Loop until verified, don't just declare success.
+
+## Ponytail — smallest complete change
+
+This playbook includes the Ponytail skill (skills/ponytail/SKILL.md, from DietrichGebert/ponytail, MIT). Use it on coding tasks: the best code is the code never written. Before writing, take the first option that fully works — (1) does it need to exist at all (YAGNI), (2) already in this codebase, (3) standard library / platform feature, (4) an already-installed dependency, (5) one line a reader gets at a glance, (6) otherwise the minimum code that works. Never cut validation at trust boundaries, error handling that prevents data loss, security, or accessibility. A deliberate shortcut with a known limit gets a comment in the form `shortcut: <the limit>, <when to upgrade>`. Levels lite / full (default) / ultra follow the skill. If AGENTS.md and the skill ever conflict, AGENTS.md wins.
+
+
+
+
+
 
 ## Working rules
 
@@ -215,22 +218,45 @@ Project-level `AGENTS.md` / `CLAUDE.md` rules take precedence where they conflic
 
 ## Git
 
-- **Never force-push** (`--force`, `-f`, `--force-with-lease`, `+refspec`) on any branch (hooks enforce this).
-- **Never rewrite pushed history** (no amend / rebase / reset + re-push / squash). Fix with a new commit; update from main with `git merge origin/main`.
-- Never commit `.env`, keys, tokens, or files >5 MB (hooks enforce this).
-- Never commit directly to `main` / `master`; branch first.
-- **Multiple logical commits, one PR**, unless I explicitly ask for separate PRs.
-- **Ask before committing** unless I already said "commit".
-- Commit messages: short imperative subject, body explains why when non-obvious.
-- PR title and description must summarise the **whole branch**, not the last commit (see the `split-commit-pr` skill).
-- Production changes only under a change ticket, on a branch named after it (see the `change-ticket-release` skill).
+- Commit to a branch tied to the task; never commit directly to `main`.
+- Push to remote first, run `git status`, then push.
+- Do not write long shell commands in one line; use `git add` and `git commit` separately.
+- Write commit messages that are short but complete.
+- Prefer the `gh` CLI for GitHub actions when available.
+- Ask before committing unless I already said "commit".
+- **Jira ticket first:** before committing, look for a Jira ticket (a key like ABC-123) — first from what I gave in the task/conversation, then from the current branch name. If neither has one, ask me for the ticket before committing; do not commit without one and do not invent one. When a PR is created, put the ticket in the PR description next to the change Summary.
+- Branch and PR naming: use the ticket key (if present) plus a short lowercase slug, e.g. `ABC-123-improve-jira-docs`.
+- For production changes, open a PR and add both a plain-English Summary and the `git log --oneline` output.
+- Do not force-push to protected branches (including `main`).
 
 ## Hygiene
 
-- Never edit generated files by hand; regenerate them with the project's tool.
-- Don't suppress security-scanner findings to make a check pass.
-- Keep each file's existing formatting, indentation and encoding.
-- Report results concisely: what changed, how it was verified, anything risky.
+- Use `git worktree` for isolated tasks — avoid working in the main clone.
+- If a hook or tool complains about my changes, fix the issue instead of disabling it.
+- Never use `git reset --hard`.
+- If a test fails after a change, stop and fix the test before continuing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ~~~~
 
 ### `CLAUDE.md`
@@ -256,8 +282,7 @@ Claude-specific notes:
 
 My portable AI coding workflow: skills, AGENTS.md rules, and git safety hooks that follow me across tools, teams, and companies.
 
-One source of truth for how I want AI coding agents to work — usable in
-Claude Code, Codex, Cursor, Copilot, Gemini CLI and other tools, on any machine.
+One source of truth for how I want AI coding agents to work — usable in Claude Code, Codex, Cursor, Copilot, Gemini CLI and other tools, on any machine.
 
 ## What's inside
 
@@ -268,92 +293,159 @@ Claude Code, Codex, Cursor, Copilot, Gemini CLI and other tools, on any machine.
 | `.github/muse-instructions.md` | Copilot entry point — same core rules. |
 | `.muserules` | Cursor entry point — same core rules. |
 | `skills/` | Reusable skills. Start from `skills/_template/SKILL.md`. |
-| `skills/split-commit-pr/` | Branch → multiple logical commits → one PR whose title/body summarise the whole branch. `scripts/pr-draft.js` builds the body |
-| `skills/change-ticket-release/` | Promote validated changes (e.g. stage → prod) under a change ticket, with a parity table. `scripts/json-diff.js` is a semantic JSON diff |
-| `hooks/` | Per-project bash git hooks: block secrets, large files, and force-pushes to main. Installed by `install.sh`. |
-| `install.sh` | Copies the rules + installs `hooks/` into one repo. |
-| `git-hooks/` | Global, cross-platform (Node) git hooks: block force-push and direct pushes to protected branches, then chain to each repo's own hooks. Enabled by `install.js --git-hooks`. |
-| `agent-hooks/guard.js` + `adapters/` | Optional agent-level guard for tools with `PreToolUse` command hooks |
-| `install.js` | Links skills into every detected tool, optionally enables `git-hooks/` globally |
-| `config.example.json` | Defaults. Override per machine in `config.local.json` (gitignored) |
-| `PLAYBOOK.md` | Everything above in one file: catalogue, structure and full sources, plus an extractor |
+| `skills/split-commit-pr/` | Branch → multiple logical commits → one PR whose title/body summarise the whole branch. `scripts/pr-draft.js` builds the body from the branch's commits. |
+| `skills/change-ticket-release/` | Compare two environments' JSON, file a change ticket, compare with `scripts/json-diff.js`, get the parity table approved, then release. |
+| `git-hooks/` | Node guardrails — one executable file per git hook name, chained through `run-hook.js` to an optional local `.git/hooks` file. |
+| `hooks/` | Per-project bash git hook: blocks secrets and large files. |
+| `adapters/claude-code-hooks.json` | Claude Code hook configuration — runs `agent-hooks/guard.js` on `Bash` / `PowerShell` tool calls. |
+| `agent-hooks/guard.js` | Optional agent guard: block force-pushes, ask before committing/pushing on a protected branch. |
+| `install.js` | Cross-platform installer — symlinks `skills/` into Claude, Codex, Copilot, Cursor and Gemini, and can install the rules and git hooks. |
+| `config.example.json` | Example machine config for the guards (protected branches, allowed commands). Copy to `config.local.json` and edit; the local file is gitignored. |
+| `lib/` | Shared helpers for the Node tools: `git.js` (branch / remote parsing) and `config.js` (local config loading). |
 
-Requirements: Git; Node.js 16+ for the `*.js` tools (no npm dependencies); bash for `install.sh` / `hooks/`.
+## Requirements
 
-## Option A — use it in one project (`install.sh`)
+- Node.js 18+ for `install.js` and the Node hooks.
+- git on your `PATH`.
+- bash for `hooks/`.
+
+## Install (one machine, every tool)
+
+```bash
+node install.js --git-hooks --agent-guard
+```
+
+This is the recommended path: it installs the agent rules into Claude Code, Codex, Copilot, Cursor and Gemini, links `skills/` into each tool, and installs the guardrails.
+
+Install only what you need:
+
+```bash
+node install.js --only claude,gemini
+node install.js --dry-run
+node install.js --uninstall
+```
+
+The installer never overwrites a skill that already exists as a real file (not a symlink). Skills are symlinked where the OS supports it, and copied otherwise. Skills under folders starting with `_` (for example `_template`) are not installed — templates are for reference only.
+
+## Option A — use it in one project (`install.js`)
 
 ```bash
 git clone https://github.com/kxg50820/agent-playbook.git
 cd <your-project>
-../agent-playbook/install.sh .
+node ../agent-playbook/install.js
 ```
 
-Or manually: copy `AGENTS.md` to your project root and run
-`cp hooks/pre-commit hooks/pre-push .git/hooks/ && chmod +x .git/hooks/pre-*`
+## Option B — carry the rules into one project (no install)
 
-## Option B — install for every tool and repo on this machine (`install.js`)
+Or manually: copy `AGENTS.md`, `CLAUDE.md` and any skill folders you need into the project, then, if you use git, run `cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Skills
+
+Current skills, and where to find them:
+
+- `split-commit-pr` — Split a branch into small, logical commits and open one PR whose title and body summarise the whole branch. See `skills/split-commit-pr/SKILL.md`.
+- `change-ticket-release` — Compare two environments' JSON, file a change ticket, compare the before/after JSON with the semantic diff, get the parity table approved, then release. See `skills/change-ticket-release/SKILL.md`.
+- `ponytail` — Lazy senior dev mode: smallest complete change, YAGNI ladder, levels lite/full/ultra. See `skills/ponytail/SKILL.md`, imported from DietrichGebert/ponytail under MIT.
+
+Skills are read-only building blocks: the agent should not change a skill's steps for one task. To add a skill, read the whole `SKILL.md` first, then follow `skills/README.md` (for example: offer an office-safe prompt first, note the source URL and date, and remove any skill you no longer use).
+
+
+
+
+## Global guardrails — and why they are complementary
+
+There are two kinds of guardrails, at two different stages — and `hooks/` — keep working.
+
+- Git hooks (`git-hooks/`) — run when git actually runs a hook: the pre-push guard blocks force-pushes, deleting protected branches, and direct pushes to protected branches, and `run-hook.js` chains on to any local `.git/hooks` file so repo-specific hooks still work.
+- Agent hooks (`agent-hooks/guard.js`, wired via `adapters/claude-code-hooks.json`) — run before the agent's `Bash` / `PowerShell` tool call: they block force-pushes and ask before a commit or push on a protected branch, before git is even invoked.
+- Project hooks (`hooks/`) — per-project bash hooks in a repo's `.git/hooks`. The pre-commit hook blocks secret files, token patterns, and files over 5 MB.
+
+The agent guard and the git hooks overlap on purpose: an agent call can be blocked before it runs, and a manual `git push` is still caught by the git hook. If either layer is disabled, the other still protects you.
+
+Install the guardrails (global, every repo):
 
 ```bash
-git clone https://github.com/kxg50820/agent-playbook.git ~/agent-playbook
-cd ~/agent-playbook
-node install.js --dry-run          # preview
-node install.js                    # link skills into detected tools (~/.claude, ~/.codex, ...)
-node install.js --git-hooks        # also enable the global git guardrails
+node install.js --git-hooks --agent-guard
 ```
 
-- Limit to some tools: `node install.js --only claude,codex`.
-- Update: `git pull` — skills are links, so changes apply immediately.
-- Remove: `node install.js --uninstall`.
-- Windows: run the same commands in PowerShell or Git Bash. Skills are linked with directory junctions (no admin rights needed); git runs the hooks through Git for Windows' `sh`.
+Install the guardrails (one repo, current repo only):
 
-Global rules: the installer prints where each tool reads them. Typical setup:
-- **Claude Code:** add `@<path-to>/agent-playbook/AGENTS.md` to `~/.claude/CLAUDE.md`.
-- **Codex:** copy or link `AGENTS.md` to `~/.codex/AGENTS.md`.
-- **Gemini CLI:** reference it from `~/.gemini/GEMINI.md`.
-- **Tools without global rules:** copy the relevant sections into the repo's `AGENTS.md`.
-
-### Global git guardrails (`git-hooks/`)
-
-Enabled with `node install.js --git-hooks` (sets `git config --global core.hooksPath`). The `pre-push` guard blocks:
-
-- force-pushes (remote tip isn't an ancestor of what you push);
-- deleting a protected branch;
-- direct pushes to protected branches (`main`, `master` by default).
-
-Per-repo opt-out for direct pushes (e.g. personal repos):
 ```bash
-git config agentPlaybook.allowProtectedPush true
+node install.js --git-hooks
 ```
 
-Every hook stub chains to the repo's own `.git/hooks/<name>`, so tools like husky v4 — and `hooks/` installed by `install.sh` — keep working. Repos that set a local `core.hooksPath` (husky v5+, lefthook…) use their own hooks and skip these.
+To change what counts as protected, or to allow protected pushes on one machine, copy `config.example.json` to `config.local.json` and edit it — the local file is gitignored.
 
-### Config
+To remove the guardrails later:
 
-Copy `config.example.json` to `config.local.json` and adjust:
+```bash
+node install.js --uninstall
+```
 
-| Key | Default | Used by |
-|---|---|---|
-| `protectedBranches` | `["main", "master"]` | git guard, agent guard |
-| `ticketPattern` / `ticketExample` | generic | reference for `change-ticket-release` |
-| `commitFooter` / `prFooter` | empty | reference for commit/PR footers (pass to `pr-draft.js --footer`) |
-| `extraTools` | none | extra tool folders for `install.js`, e.g. `{ "mytool": { "dir": ".mytool", "skills": "skills", "rules": "AGENTS.md" } }` |
+To confirm what is installed:
 
-## Principles
+```bash
+node install.js --dry-run
+```
 
-1. **One source, many tools** — edit `AGENTS.md`, the tool files just point to it.
-2. **No secrets, ever** — hooks block `.env`, keys, and token-shaped strings.
-3. **No company code/data** — this playbook is personal workflow only, safe to
-   carry between employers. Never paste employer code into it.
-4. **Read before you install** — read any third-party skill's SKILL.md first.
+## Safety rules (summary)
 
-## Adding a skill
+- Never force-push. Never rewrite history or amend a pushed commit.
+- Never push directly to `main` / `master`.
+- Never commit `.env`, `.pem`, `.key`, private keys, tokens or passwords.
+- Never run destructive commands (`rm -rf`, `git reset --hard`, `git clean -fd`) without explicit approval.
+- Test and lint before finishing; if tests fail, say so — do not claim success.
 
-Start from `skills/_template/SKILL.md`. Give it `name` and `description` frontmatter, keep scripts in `skills/<name>/scripts/` and self-contained (Node, no dependencies), and don't name any specific tool, company or internal system. Run `node install.js` again to link it.
+The full rules are in `AGENTS.md`; the safety guardrails are enforced by the hooks above.
 
-## Stack notes
+## PLAYBOOK.md
 
-Built for my day-to-day: Java, TypeScript/React, Python, and AWS.
-Language-specific guidance lives in `AGENTS.md` and can be trimmed per project.
+`PLAYBOOK.md` is the same kit as one generated file — useful when you can't clone the repo, or when a tool only accepts pasted text. It contains a catalogue, the folder structure, a rebuild script (`extract.js` in the generated file) and the full source of every other file.
+
+It is generated, not hand-written. If you change a source file, regenerate it before committing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ~~~~
 
 ### `adapters/claude-code-hooks.json`
@@ -456,8 +548,8 @@ process.exit(0);
 
 ### `git-hooks/applypatch-msg`
 
-<!-- file: git-hooks/applypatch-msg exec -->
-~~~~sh
+<!-- file: git-hooks/applypatch-msg -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/applypatch-msg).
 exec node "$(dirname "$0")/run-hook.js" applypatch-msg "$@"
@@ -465,8 +557,8 @@ exec node "$(dirname "$0")/run-hook.js" applypatch-msg "$@"
 
 ### `git-hooks/commit-msg`
 
-<!-- file: git-hooks/commit-msg exec -->
-~~~~sh
+<!-- file: git-hooks/commit-msg -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/commit-msg).
 exec node "$(dirname "$0")/run-hook.js" commit-msg "$@"
@@ -540,8 +632,8 @@ module.exports = function prePush(args, stdin) {
 
 ### `git-hooks/post-applypatch`
 
-<!-- file: git-hooks/post-applypatch exec -->
-~~~~sh
+<!-- file: git-hooks/post-applypatch -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/post-applypatch).
 exec node "$(dirname "$0")/run-hook.js" post-applypatch "$@"
@@ -549,8 +641,8 @@ exec node "$(dirname "$0")/run-hook.js" post-applypatch "$@"
 
 ### `git-hooks/post-checkout`
 
-<!-- file: git-hooks/post-checkout exec -->
-~~~~sh
+<!-- file: git-hooks/post-checkout -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/post-checkout).
 exec node "$(dirname "$0")/run-hook.js" post-checkout "$@"
@@ -558,8 +650,8 @@ exec node "$(dirname "$0")/run-hook.js" post-checkout "$@"
 
 ### `git-hooks/post-commit`
 
-<!-- file: git-hooks/post-commit exec -->
-~~~~sh
+<!-- file: git-hooks/post-commit -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/post-commit).
 exec node "$(dirname "$0")/run-hook.js" post-commit "$@"
@@ -567,8 +659,8 @@ exec node "$(dirname "$0")/run-hook.js" post-commit "$@"
 
 ### `git-hooks/post-merge`
 
-<!-- file: git-hooks/post-merge exec -->
-~~~~sh
+<!-- file: git-hooks/post-merge -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/post-merge).
 exec node "$(dirname "$0")/run-hook.js" post-merge "$@"
@@ -576,8 +668,8 @@ exec node "$(dirname "$0")/run-hook.js" post-merge "$@"
 
 ### `git-hooks/post-rewrite`
 
-<!-- file: git-hooks/post-rewrite exec -->
-~~~~sh
+<!-- file: git-hooks/post-rewrite -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/post-rewrite).
 exec node "$(dirname "$0")/run-hook.js" post-rewrite "$@"
@@ -585,8 +677,8 @@ exec node "$(dirname "$0")/run-hook.js" post-rewrite "$@"
 
 ### `git-hooks/pre-applypatch`
 
-<!-- file: git-hooks/pre-applypatch exec -->
-~~~~sh
+<!-- file: git-hooks/pre-applypatch -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/pre-applypatch).
 exec node "$(dirname "$0")/run-hook.js" pre-applypatch "$@"
@@ -594,8 +686,8 @@ exec node "$(dirname "$0")/run-hook.js" pre-applypatch "$@"
 
 ### `git-hooks/pre-auto-gc`
 
-<!-- file: git-hooks/pre-auto-gc exec -->
-~~~~sh
+<!-- file: git-hooks/pre-auto-gc -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/pre-auto-gc).
 exec node "$(dirname "$0")/run-hook.js" pre-auto-gc "$@"
@@ -603,8 +695,8 @@ exec node "$(dirname "$0")/run-hook.js" pre-auto-gc "$@"
 
 ### `git-hooks/pre-commit`
 
-<!-- file: git-hooks/pre-commit exec -->
-~~~~sh
+<!-- file: git-hooks/pre-commit -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/pre-commit).
 exec node "$(dirname "$0")/run-hook.js" pre-commit "$@"
@@ -612,17 +704,26 @@ exec node "$(dirname "$0")/run-hook.js" pre-commit "$@"
 
 ### `git-hooks/pre-merge-commit`
 
-<!-- file: git-hooks/pre-merge-commit exec -->
-~~~~sh
+<!-- file: git-hooks/pre-merge-commit -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/pre-merge-commit).
 exec node "$(dirname "$0")/run-hook.js" pre-merge-commit "$@"
 ~~~~
 
+### `git-hooks/prepare-commit-msg`
+
+<!-- file: git-hooks/prepare-commit-msg -->
+~~~~bash
+#!/bin/sh
+# Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/prepare-commit-msg).
+exec node "$(dirname "$0")/run-hook.js" prepare-commit-msg "$@"
+~~~~
+
 ### `git-hooks/pre-push`
 
-<!-- file: git-hooks/pre-push exec -->
-~~~~sh
+<!-- file: git-hooks/pre-push -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/pre-push).
 exec node "$(dirname "$0")/run-hook.js" pre-push "$@"
@@ -630,25 +731,16 @@ exec node "$(dirname "$0")/run-hook.js" pre-push "$@"
 
 ### `git-hooks/pre-rebase`
 
-<!-- file: git-hooks/pre-rebase exec -->
-~~~~sh
+<!-- file: git-hooks/pre-rebase -->
+~~~~bash
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/pre-rebase).
 exec node "$(dirname "$0")/run-hook.js" pre-rebase "$@"
 ~~~~
 
-### `git-hooks/prepare-commit-msg`
-
-<!-- file: git-hooks/prepare-commit-msg exec -->
-~~~~sh
-#!/bin/sh
-# Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/prepare-commit-msg).
-exec node "$(dirname "$0")/run-hook.js" prepare-commit-msg "$@"
-~~~~
-
 ### `git-hooks/run-hook.js`
 
-<!-- file: git-hooks/run-hook.js exec -->
+<!-- file: git-hooks/run-hook.js -->
 ~~~~js
 #!/usr/bin/env node
 /*
@@ -710,7 +802,7 @@ process.exit(0);
 ### `hooks/pre-commit`
 
 <!-- file: hooks/pre-commit -->
-~~~~sh
+~~~~bash
 #!/usr/bin/env bash
 # Playbook pre-commit: block secrets and large files.
 set -euo pipefail
@@ -740,29 +832,6 @@ for f in $(git diff --cached --name-only --diff-filter=ACM); do
 done
 
 [ "$fail" -eq 0 ] || { echo "Commit aborted by agent-playbook pre-commit hook."; exit 1; }
-exit 0
-~~~~
-
-### `hooks/pre-push`
-
-<!-- file: hooks/pre-push -->
-~~~~sh
-#!/usr/bin/env bash
-# Playbook pre-push: block force-pushes to main/master.
-set -euo pipefail
-
-while read -r local_ref local_sha remote_ref remote_sha; do
-  case "$remote_ref" in
-    refs/heads/main|refs/heads/master)
-      # Force push = remote sha is not an ancestor of local sha
-      if [ "$remote_sha" != "0000000000000000000000000000000000000000" ] && \
-         ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
-        echo "✗ Blocked: force-push to ${remote_ref#refs/heads/} is not allowed."
-        exit 1
-      fi
-      ;;
-  esac
-done
 exit 0
 ~~~~
 
@@ -901,36 +970,6 @@ if (!UNINSTALL) {
 }
 ~~~~
 
-### `install.sh`
-
-<!-- file: install.sh -->
-~~~~sh
-#!/usr/bin/env bash
-# Install the playbook into a target project.
-# Usage: ./install.sh /path/to/project   (default: current directory)
-set -euo pipefail
-
-TARGET="${1:-.}"
-SRC="$(cd "$(dirname "$0")" && pwd)"
-
-if [ ! -d "$TARGET/.git" ]; then
-  echo "Warning: $TARGET is not a git repo — copying rules, skipping hooks."
-fi
-
-cp "$SRC/AGENTS.md" "$TARGET/AGENTS.md"
-cp "$SRC/CLAUDE.md" "$TARGET/CLAUDE.md"
-echo "Copied AGENTS.md + CLAUDE.md -> $TARGET"
-
-if [ -d "$TARGET/.git" ]; then
-  cp "$SRC/hooks/pre-commit" "$TARGET/.git/hooks/pre-commit"
-  cp "$SRC/hooks/pre-push" "$TARGET/.git/hooks/pre-push"
-  chmod +x "$TARGET/.git/hooks/pre-commit" "$TARGET/.git/hooks/pre-push"
-  echo "Installed git hooks -> $TARGET/.git/hooks/"
-fi
-
-echo "Done. Review AGENTS.md in the target and trim anything project-irrelevant."
-~~~~
-
 ### `lib/config.js`
 
 <!-- file: lib/config.js -->
@@ -997,21 +1036,6 @@ function remoteInfo(remote, cwd) {
 module.exports = { git, currentBranch, remoteInfo };
 ~~~~
 
-### `skills/README.md`
-
-<!-- file: skills/README.md -->
-~~~~markdown
-# Skills
-
-One folder per skill, each with a `SKILL.md` (see `_template/`).
-
-Rules for adding a skill here:
-1. Read its full SKILL.md/source before adding — no blind installs.
-2. Note where it came from (repo URL + date) at the top of the skill.
-3. Keep it office-safe: a prompt/copy-paste version first, install second.
-4. Remove skills you no longer use — a short playbook gets followed.
-~~~~
-
 ### `skills/_template/SKILL.md`
 
 <!-- file: skills/_template/SKILL.md -->
@@ -1035,98 +1059,6 @@ Describe the trigger clearly, so an agent picks this up at the right moment.
 - Read this file fully before running any install/command in it.
 - No company code or data to external tools.
 - Show the result, don't just claim success.
-~~~~
-
-### `skills/change-ticket-release/SKILL.md`
-
-<!-- file: skills/change-ticket-release/SKILL.md -->
-~~~~markdown
----
-name: change-ticket-release
-description: Promote already-validated changes from a lower environment (dev/stage) to a higher one (prod) under a change ticket. Asks for the ticket first, works on a branch named exactly after it, builds a parity table, copies only approved items, and opens one multi-commit PR without force-pushing. Use for "sync stage to prod", "promote these changes to prod", "release under change ticket X", "check stage/prod parity".
----
-
-# Change-ticket release (lower env → higher env)
-
-Production is customer-facing. Use this skill only when the user explicitly asks for a higher-environment change.
-
-## Before coding: 4 rules
-
-1. **Think first.** State the assumptions: ticket, environments, files/keys, and which changes are in scope. If unsure, ask. Never guess the ticket or the scope.
-2. **Simplicity.** Copy only the approved items, with the minimum edit.
-3. **Surgical.** Touch only those target files and keys. Never touch CI- or bot-managed values or unrelated differences.
-4. **Goal-driven.** Define the check before editing, e.g. "the diff between source and target shows only the *Intentionally different* and *Pending* rows, and the tests pass". Edit until it passes.
-
-## 0. Ask for the change ticket (always first)
-
-- Ask: "What is the change ticket number for this release?" If the user already typed one, confirm it.
-- Never infer it from the current branch, other branches, history or earlier chats.
-- Validate it against the format the user or project uses. If the user has none, stop. A read-only parity check (step 2) is still allowed.
-
-## 1. Gather inputs (ask if missing)
-
-| Input | Notes |
-|---|---|
-| Ticket | Exact branch name; goes into every commit and the PR title |
-| Source → target env | e.g. stage → prod |
-| Files / config keys | Only the ones the user names |
-| Source of truth | Only what is **already merged to the default branch and validated** in the source env |
-
-If the source change isn't merged yet, stop: ship it first (`split-commit-pr`), then come back.
-
-## 2. Branch
-
-```bash
-git fetch origin
-git checkout <default> && git pull --ff-only origin <default>
-git log --oneline -5                       # let the user confirm the source change is in
-git branch -a --list '<TICKET>' '*/<TICKET>'
-git checkout -b <TICKET>                   # exact name, no suffix
-```
-- **One ticket = one branch = one PR.** Never reuse another ticket's branch, a feature branch or the default branch.
-- If the branch already exists, ask: continue on it (merge `origin/<default>` in) or stop. Never delete, recreate or force-push it.
-- Uncommitted work: list it and ask before stashing. Never discard it.
-
-## 3. Diff source vs target
-
-JSON files (key order and BOM ignored; array items matched by `id`/`key`/`name`/`field`, configurable):
-```bash
-node <this-skill-dir>/scripts/json-diff.js <source.json> <target.json> [--keys id,key,name] [--path config]
-```
-Output: `+` only in source (candidate to copy), `-` only in target, `~` changed (`target -> source`). Exit code 0 = identical, 1 = differences.
-
-Other formats (YAML, .env, properties): compare entry by entry for the same keys; copy values **verbatim**, never re-serialise.
-
-## 4. Parity table — get approval before editing
-
-| File / key | Change (source → target) | Action |
-|---|---|---|
-| `<file>` | +3 items | **Copy** |
-| `<file>` `<key>` | new value | **Copy** |
-| `<bot-managed value>` | differs | **Skip (CI-managed)** |
-
-Classify every difference:
-- **Copy** — requested and validated in the source env.
-- **Intentionally different** — env-specific URLs/IDs/labels, or items the user deliberately holds back.
-- **Pending** — in source but not requested. List it, don't copy it.
-
-## 5. Apply
-
-- Targeted edits only. Never overwrite the whole target file with the source file.
-- Keep each file's indentation, quoting style, encoding (BOM) and line endings, so the diff shows only the intended change.
-- Re-run step 3: only *Intentionally different* and *Pending* rows may remain.
-- Run the relevant tests and linters.
-
-## 6. Commit + PR
-
-Follow `split-commit-pr`: one commit per file × key/feature, all on `<TICKET>`, one PR, never force-push, ask before committing.
-
-- Commit/PR title pattern: `[<TICKET>] <target env>: <summary of everything promoted>`.
-- PR body (`--extra-file`): final parity table, where/when it was validated in the source env, rollback (revert this PR; list the previous values), out-of-scope items.
-
-## 7. After merge
-
-Tell the user (don't do it yourself): watch the deployment pipeline for the ticket, never deploy manually, and spot-check the changed features in the target env.
 ~~~~
 
 ### `skills/change-ticket-release/scripts/json-diff.js`
@@ -1235,6 +1167,399 @@ print("Changed", "~", out.chg);
 process.exit(out.add.length + out.del.length + out.chg.length ? 1 : 0);
 ~~~~
 
+### `skills/change-ticket-release/SKILL.md`
+
+<!-- file: skills/change-ticket-release/SKILL.md -->
+~~~~markdown
+---
+name: change-ticket-release
+description: Promote already-validated changes from a lower environment (dev/stage) to a higher one (prod) under a change ticket. Asks for the ticket first, works on a branch named exactly after it, builds a parity table, copies only approved items, and opens one multi-commit PR without force-pushing. Use for "sync stage to prod", "promote these changes to prod", "release under change ticket X", "check stage/prod parity".
+---
+
+# Change-ticket release (lower env → higher env)
+
+Production is customer-facing. Use this skill only when the user explicitly asks for a higher-environment change.
+
+## Before coding: 4 rules
+
+1. **Think first.** State the assumptions: ticket, environments, files/keys, and which changes are in scope. If unsure, ask. Never guess the ticket or the scope.
+2. **Simplicity.** Copy only the approved items, with the minimum edit.
+3. **Surgical.** Touch only those target files and keys. Never touch CI- or bot-managed values or unrelated differences.
+4. **Goal-driven.** Define the check before editing, e.g. "the diff between source and target shows only the *Intentionally different* and *Pending* rows, and the tests pass". Edit until it passes.
+
+## 0. Ask for the change ticket (always first)
+
+- Ask: "What is the change ticket number for this release?" If the user already typed one, confirm it.
+- Never infer it from the current branch, other branches, history or earlier chats.
+- Validate it against the format the user or project uses. If the user has none, stop. A read-only parity check (step 2) is still allowed.
+
+## 1. Gather inputs (ask if missing)
+
+| Input | Notes |
+|---|---|
+| Ticket | Exact branch name; goes into every commit and the PR title |
+| Source → target env | e.g. stage → prod |
+| Files / config keys | Only the ones the user names |
+| Source of truth | Only what is **already merged to the default branch and validated** in the source env |
+
+If the source change isn't merged yet, stop: ship it first (`split-commit-pr`), then come back.
+
+## 2. Branch
+
+```bash
+git fetch origin
+git checkout <default> && git pull --ff-only origin <default>
+git log --oneline -5                       # let the user confirm the source change is in
+git branch -a --list '<TICKET>' '*/<TICKET>'
+git checkout -b <TICKET>                   # exact name, no suffix
+```
+- **One ticket = one branch = one PR.** Never reuse another ticket's branch, a feature branch or the default branch.
+- If the branch already exists, ask: continue on it (merge `origin/<default>` in) or stop. Never delete, recreate or force-push it.
+- Uncommitted work: list it and ask before stashing. Never discard it.
+
+## 3. Diff source vs target
+
+JSON files (key order and BOM ignored; array items matched by `id`/`key`/`name`/`field`, configurable):
+```bash
+node <this-skill-dir>/scripts/json-diff.js <source.json> <target.json> [--keys id,key,name] [--path config]
+```
+Output: `+` only in source (candidate to copy), `-` only in target, `~` changed (`target -> source`). Exit code 0 = identical, 1 = differences.
+
+Other formats (YAML, .env, properties): compare entry by entry for the same keys; copy values **verbatim**, never re-serialise.
+
+## 4. Parity table — get approval before editing
+
+| File / key | Change (source → target) | Action |
+|---|---|---|
+| `<file>` | +3 items | **Copy** |
+| `<file>` `<key>` | new value | **Copy** |
+| `<bot-managed value>` | differs | **Skip (CI-managed)** |
+
+Classify every difference:
+- **Copy** — requested and validated in the source env.
+- **Intentionally different** — env-specific URLs/IDs/labels, or items the user deliberately holds back.
+- **Pending** — in source but not requested. List it, don't copy it.
+
+## 5. Apply
+
+- Targeted edits only. Never overwrite the whole target file with the source file.
+- Keep each file's indentation, quoting style, encoding (BOM) and line endings, so the diff shows only the intended change.
+- Re-run step 3: only *Intentionally different* and *Pending* rows may remain.
+- Run the relevant tests and linters.
+
+## 6. Commit + PR
+
+Follow `split-commit-pr`: one commit per file × key/feature, all on `<TICKET>`, one PR, never force-push, ask before committing.
+
+- Commit/PR title pattern: `[<TICKET>] <target env>: <summary of everything promoted>`.
+- PR body (`--extra-file`): final parity table, where/when it was validated in the source env, rollback (revert this PR; list the previous values), out-of-scope items.
+
+## 7. After merge
+
+Tell the user (don't do it yourself): watch the deployment pipeline for the ticket, never deploy manually, and spot-check the changed features in the target env.
+~~~~
+
+### `skills/ponytail/SKILL.md`
+
+<!-- file: skills/ponytail/SKILL.md -->
+~~~~markdown
+---
+name: ponytail
+description: >
+  Lazy senior dev mode: the smallest change that fully solves the task, and a
+  reply a busy human understands in one read. Use on any coding task (writing,
+  fixing, refactoring, reviewing, choosing dependencies) and when the user says
+  "ponytail", "be lazy", "simplest solution", "yagni", or complains about
+  over-engineering or bloat. Levels: lite, full (default), ultra.
+argument-hint: "[lite|full|ultra|off]"
+license: MIT
+---
+
+> Source: https://github.com/DietrichGebert/ponytail/blob/main/skills/ponytail/SKILL.md
+> Retrieved 2026-11-03. MIT License — © Dietrich Gebert and contributors.
+> Imported into agent-playbook as-is; local rules in this repo's AGENTS.md still win on any conflict.
+
+# Ponytail
+
+You are a lazy senior developer. The best code is the code never written. You solve the whole problem with the least new code. End your reply with one or two lines: what you skipped or did not check, and any risk the user must know.
+
+Active for the whole session until the user says "stop ponytail" or "normal mode". Switch level: `/ponytail lite|full|ultra`.
+
+## Before you write
+
+Read the task and the code it touches. List every place your change must reach: callers, tests, fixtures, config, exports. Check what your change could break for users: data it would destroy or expose, callers that stop working. That is scope. Extra features are not.
+
+## The smallest complete change
+
+Take the first option that fully works:
+
+1. Does it need to exist? Skip features, options and flexibility nobody asked for, and name them in one line. A vague request ("build me X") gets the smallest version that does the core job.
+2. Already in this codebase (a helper, component, service, pattern)? Use it the way the surrounding code does.
+3. Standard library or a platform feature? Use it, unless the project has its own. A house component beats a native widget.
+4. An installed dependency? Use it. Never add a dependency for a few lines.
+5. Can it be one line a reader gets at a glance? One line.
+6. Otherwise: the minimum code that works.
+
+- Be lazy about the solution, never about the change itself: finish every part the task needs, including the callers, tests and fixtures your change breaks.
+- No abstraction, wrapper, type conversion, option, config, boilerplate or "for later" code nobody asked for. Keep values in the form the platform already gives you. Deletion beats addition. Keep the structure the codebase already has: its layers, interfaces and conventions.
+- The shortest working diff wins, once you know everything it must touch. A one-liner that needs decoding is not short.
+- Comment only the why the code cannot show, in one line.
+- Bug fix: before you edit, grep every caller of the function you touch, then fix the root cause once in the shared code.
+- Code you move or merge keeps its error handling and validation.
+- Between options of equal size, take the one that is correct on edge cases.
+- Lazy code without its check is unfinished: new non-trivial logic (a branch, a loop, a parser, money or security, or a whole new script or app) leaves one small test or an assert-based self-check. Trivial changes need none.
+- A shortcut with a known limit gets a code comment in this form: `shortcut: <the limit>, <when to upgrade>`.
+
+Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs, anything the user asked for.
+
+## Levels
+
+| Level | Behavior |
+|-------|----------|
+| **lite** | Build what was asked. Name the smaller option in one line and let the user pick. |
+| **full** | The rules above. Default. |
+| **ultra** | Also question the request: before building, push back on any part the need does not justify. |
+~~~~
+
+### `skills/README.md`
+
+<!-- file: skills/README.md -->
+~~~~markdown
+# Skills
+
+One folder per skill, each with a `SKILL.md` (see `_template/`).
+
+Rules for adding a skill here:
+1. Read its full SKILL.md/source before adding — no blind installs.
+2. Note where it came from (repo URL + date) at the top of the skill.
+3. Keep it office-safe: a prompt/copy-paste version first, install second.
+4. Remove skills you no longer use — a short playbook gets followed.
+~~~~
+
+### `skills/split-commit-pr/scripts/pr-draft.js`
+
+<!-- file: skills/split-commit-pr/scripts/pr-draft.js -->
+~~~~js
+#!/usr/bin/env node
+/*
+ * Build a PR title + body from ALL commits on the current branch.
+ * Self-contained (no dependencies), works on macOS, Linux and Windows.
+ * Usage (from the repo root):
+ *   node pr-draft.js --title "<title>" --summary "<1-3 lines>"
+ *        [--refs "<tickets>"] [--extra-file notes.md] [--footer "<line>"] [--base main] [--remote origin]
+ * Ticket: --refs takes precedence; otherwise the ticket is extracted
+ * from the current branch name (e.g. ABC-123). If neither has one,
+ * the body notes that a ticket is required and must be asked for;
+ * a ticket is never invented.
+ */
+"use strict";
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { spawnSync } = require("child_process");
+function arg(name, def) {
+  const i = process.argv.indexOf("--" + name);
+  return i > -1 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def;
+}
+function git(args, optional) {
+  const r = spawnSync("git", args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, windowsHide: true });
+  if (r.error || r.status !== 0) {
+    if (optional) return "";
+    console.error("git " + args.join(" ") + " failed: " + (r.stderr || r.error));
+    process.exit(1);
+  }
+  return r.stdout.trim();
+}
+function defaultBranch(remote) {
+  const head = git(["symbolic-ref", "--short", "refs/remotes/" + remote + "/HEAD"], true);
+  return head ? head.replace(remote + "/", "") : "main";
+}
+function remoteInfo(remote) {
+  const url = git(["remote", "get-url", remote], true);
+  const m = url.match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](?:\d+\/)?(.+?)(?:\.git)?\/?$/i);
+  return m ? { host: m[1], slug: m[2], web: "https://" + m[1] + "/" + m[2] } : null;
+}
+const remote = arg("remote", "origin");
+const base = arg("base", defaultBranch(remote));
+const title = arg("title", "");
+const summary = arg("summary", "");
+const refs = arg("refs", "");
+const extraFile = arg("extra-file", "");
+const footer = arg("footer", "");
+if (!title || !summary) {
+  console.error('Required: --title "<title>" --summary "<summary of the WHOLE branch>"');
+  process.exit(1);
+}
+const branch = git(["branch", "--show-current"]);
+const ticketFromRefs = (refs.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
+const ticketFromBranch = (branch.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
+const ticket = ticketFromRefs || ticketFromBranch;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const baseRef = remote + "/" + base;
+const commits = git(["log", "--reverse", "--format=%h%x09%s", baseRef + "..HEAD"])
+  .split("\n")
+  .filter(Boolean)
+  .map((line) => {
+    const [sha, subject] = line.split("\t");
+    const files = git(["show", "--name-only", "--format=", sha]).split("\n").filter(Boolean);
+    return { sha, subject, files };
+  });
+if (!commits.length) {
+  console.error("No commits on " + branch + " ahead of " + baseRef + " (run git fetch?)");
+  process.exit(1);
+}
+const stat = git(["diff", "--shortstat", baseRef + "...HEAD"]);
+const fileCount = git(["diff", "--name-only", baseRef + "...HEAD"]).split("\n").filter(Boolean).length;
+const short = (f) => (f.length > 70 ? "…" + f.slice(-69) : f);
+const cell = (s) => s.replace(/\|/g, "\\|");
+const summaryLine = ticket ? "Jira: " + ticket : "Jira ticket required — ask the user for the ticket before committing; none was given and none was found in the branch name.";
+const lines = ["## Summary", summaryLine, summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|" , ""];
+for (const c of commits) {
+  lines.push(
+    "| `" + c.sha + "` | " + cell(c.subject) + " | " + c.files.map((f) => "`" + cell(short(f)) + "`").join("<br>") + " |"
+  );
+}
+lines.push("", "**Files changed (" + fileCount + "):** " + stat, "");
+if (extraFile) lines.push(fs.readFileSync(extraFile, "utf8").trim(), "");
+lines.push("## References", refs || ticket || "_None_", "");
+if (footer) lines.push(footer);
+const body = lines.join("\n").trim() + "\n";
+const out = path.join(os.tmpdir(), "pr-" + branch.replace(/[^\w.-]+/g, "_") + ".md");
+fs.writeFileSync(out, body);
+const q = (s) => '"' + s.replace(/"/g, '\\"') + '"';
+const info = remoteInfo(remote);
+console.log("TITLE: " + title);
+console.log("BODY FILE: " + out + "  (" + commits.length + " commits, " + fileCount + " files)");
+if (!ticket) {
+  console.log("\nWARNING: No Jira ticket found — ask the user for the ticket before committing; none was invented.");
+}
+if (info) {
+  const ghBase = "gh pr %s --repo " + info.host + "/" + info.slug;
+  console.log("\n# gh (authenticated):");
+  console.log("  new PR:      " + ghBase.replace("%s", "create") + " --base " + base + " --head " + q(branch) + " --title " + q(title) + " --body-file " + q(out));
+  console.log("  existing PR: " + ghBase.replace("%s", "edit") + " " + q(branch) + " --title " + q(title) + " --body-file " + q(out));
+  const compare = info.web + "/compare/" + base + "..." + encodeURIComponent(branch) + "?expand=1&title=" + encodeURIComponent(title);
+  const full = compare + "&body=" + encodeURIComponent(body);
+  console.log("\n# Browser (title and body prefilled):");
+  if (full.length > 7500) {
+    console.log("  Body too long for a URL; title-only link below, paste the body from " + out);
+    console.log("  " + compare);
+  } else {
+    console.log("  " + full);
+  }
+} else {
+  console.log("\nNo parsable '" + remote + "' remote; paste the body from " + out);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+~~~~
+
 ### `skills/split-commit-pr/SKILL.md`
 
 <!-- file: skills/split-commit-pr/SKILL.md -->
@@ -1249,187 +1574,95 @@ description: Sync with the default branch, create a feature branch, split the wo
 ## Standing rules
 
 1. **Never force-push.** No `--force`, `-f`, `--force-with-lease` or `+refspec`, on any branch.
-2. **Never rewrite pushed history.** No amend, rebase, reset + re-push or squash on a pushed branch. Fix with a new commit (`fix: …` / `revert: …`). Update from the default branch with `git merge origin/<default>`.
-3. **Multiple commits, one PR.** Split the work into logical commits and open a single PR. One commit is fine only when the change truly can't be split; say so.
-4. **Separate PRs only when the user explicitly asks.** Each still gets multiple commits.
-5. **Ask before committing**, unless the user already said "commit".
-6. The diff must follow the 4 "before coding" rules (assumptions stated, minimal, surgical, verified). Flag anything beyond the request before committing.
+2. **Never rewrite pushed history.** No amend, rebase, reset + re-push or squash on a pushed branch. Fix forward with a new commit.
+3. **Multiple commits, one PR.** Split the work into logical commits and open a single PR. One commit per logical step — never one giant commit, never one PR per commit unless the user explicitly asks for separate PRs.
+4. **PR body is the whole branch.** Title + description cover the whole branch, not just the latest commit.
+5. **Ask before committing.** Do not commit without asking the user first — even if the branch is ready.
+6. The diff must follow AGENTS.md. Keep it small, typed, tested and understandable.
+
+## 0. Jira ticket first
+
+Jira ticket first. If you didn't give one and the branch name doesn't have one, the agent asks before committing. The ticket goes in the PR description next to the change Summary.
+
+- Before any commit, look for a Jira ticket (a key like ABC-123) in this order: first, what the user gave in the task/conversation; then the current branch name.
+- If neither has one, ask the user for the ticket before committing — do not commit without one and do not invent one.
+- When the PR is created, put the ticket in the PR description next to the Summary of changes (see §4).
 
 ## 1. Sync and branch
 
-```bash
-git fetch origin
-git checkout <default> && git pull --ff-only origin <default>
-git checkout -b <branch>          # use the user's exact branch name
-```
-- Find `<default>` with `git symbolic-ref --short refs/remotes/origin/HEAD` (strip `origin/`).
-- Uncommitted work: list it and ask whether to stash (`git stash push -u -m "<why>"`) or commit it first. Never discard it.
-- "Pull latest into this branch": `git fetch origin && git merge origin/<default>`. Merge, don't rebase.
+1. `git switch main` (or the default branch for this repo) and run `git pull --ff-only`.
+2. Create the branch from the synced main with a ticket-led, lowercase slug, for example `feature/JIRA-123-add-login` (use the actual ticket key).
+3. If the user gave a different name, use that name exactly.
+4. Run `git status` to confirm the tree is clean.
 
-## 2. Split commits
 
-- One commit per logical unit (feature area, module, config key, migration…). If the user asks for N commits, make exactly N.
-- Conventional Commits: `feat(scope): …`, `fix(scope): …`, `refactor:`, `test:`, `docs:`, `chore:`.
-- Split one file across commits with `git add -p`, or apply the edits in stages.
-- Respect the project's commit hooks (lint, format, commit-msg). If a hook needs an interactive terminal and hangs, tell the user rather than silently skipping it.
-- Add any footer the user's or project's rules require (e.g. a co-author line).
-- Before the first push, show the plan: `git log --oneline origin/<default>..HEAD`. If it's one commit but the work spans several units, split it now. After pushing it can't be split without a force-push.
 
-## 3. Push
 
-```bash
-git push -u origin <branch>       # plain push only
-```
-If rejected because the remote is ahead: `git pull --no-rebase origin <branch>`, then push again.
 
-## 4. PR title and description: summarise the WHOLE branch
 
-Hosting defaults (branch name or last commit as title, empty template as body) are wrong for multi-commit branches. Never rely on them.
 
-1. Read the whole branch:
-   ```bash
-   git log --reverse --format='%h %s' origin/<default>..HEAD
-   git diff --stat origin/<default>...HEAD
-   ```
-2. **Title** (≤ 72 chars): conventional prefix + scope covering every commit. Mixed types → most significant (`feat` > `fix` > `refactor` > `chore` > `docs`).
-3. **Summary**: 1–3 lines — why, scope, and what is intentionally out of scope.
-4. **Generate the body** (cross-platform, no dependencies, read-only apart from the draft file):
-   ```bash
-   node <this-skill-dir>/scripts/pr-draft.js --title "<title>" --summary "<summary>" \
-        [--refs "<tickets / related PRs>"] [--extra-file <notes.md>] [--footer "<footer line>"] [--base <default>]
-   ```
-   It writes a Markdown body with a per-commit table, file stats, references and footer, and prints:
-   - `gh pr create` / `gh pr edit` commands for the detected host;
-   - a compare URL with title and body prefilled, for when `gh` isn't logged in.
-   If the repo has a PR template (`.github/pull_request_template.md`), fit the body into it.
-5. **Show the title and body** to the user in a copy-pasteable block before creating the PR.
-6. **Create or update** with `gh` when authenticated (`gh auth status --hostname <host>`); otherwise give the prefilled URL. Login is interactive — the user runs it.
-7. **New commits later:** push them to the same branch (same PR) and regenerate **both** title and body.
 
-## 5. Separate PRs (only when asked)
 
-Create each new branch from `origin/<default>` and `git cherry-pick` the relevant commits. On the original pushed branch, remove moved work with a `git revert` commit, never by rewriting history.
-~~~~
 
-### `skills/split-commit-pr/scripts/pr-draft.js`
 
-<!-- file: skills/split-commit-pr/scripts/pr-draft.js -->
-~~~~js
-#!/usr/bin/env node
-/*
- * Build a PR title + body from ALL commits on the current branch.
- * Self-contained (no dependencies), works on macOS, Linux and Windows.
- *
- * Usage (from the repo root):
- *   node pr-draft.js --title "<title>" --summary "<1-3 lines>"
- *        [--refs "<tickets>"] [--extra-file notes.md] [--footer "<line>"] [--base main] [--remote origin]
- */
-"use strict";
 
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const { spawnSync } = require("child_process");
 
-function arg(name, def) {
-  const i = process.argv.indexOf("--" + name);
-  return i > -1 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def;
-}
 
-function git(args, optional) {
-  const r = spawnSync("git", args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, windowsHide: true });
-  if (r.error || r.status !== 0) {
-    if (optional) return "";
-    console.error("git " + args.join(" ") + " failed: " + (r.stderr || r.error));
-    process.exit(1);
-  }
-  return r.stdout.trim();
-}
 
-function defaultBranch(remote) {
-  const head = git(["symbolic-ref", "--short", "refs/remotes/" + remote + "/HEAD"], true);
-  return head ? head.replace(remote + "/", "") : "main";
-}
+## 2. Work and check
 
-function remoteInfo(remote) {
-  const url = git(["remote", "get-url", remote], true);
-  const m = url.match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](?:\d+\/)?(.+?)(?:\.git)?\/?$/i);
-  return m ? { host: m[1], slug: m[2], web: "https://" + m[1] + "/" + m[2] } : null;
-}
+1. Implement the change with small, reviewable diffs.
+2. Run the relevant tests/builds. If any fail, fix before continuing.
+3. Show what changed, what was verified, and what is still open — be honest about failures.
 
-const remote = arg("remote", "origin");
-const base = arg("base", defaultBranch(remote));
-const title = arg("title", "");
-const summary = arg("summary", "");
-const refs = arg("refs", "");
-const extraFile = arg("extra-file", "");
-const footer = arg("footer", "");
+## 3. Split commits
 
-if (!title || !summary) {
-  console.error('Required: --title "<title>" --summary "<summary of the WHOLE branch>"');
-  process.exit(1);
-}
+1. Ask the user: "I want to split this work into these commits. Is that right?"
+2. Show the proposed commit list before committing.
+3. If the user agrees, commit in order, one logical step per commit, with a conventional message:
+   - `feat: add login validation`
+   - `fix: correct error message`
+   - `docs: update login docs`
+4. Each commit message should be short but complete.
 
-const branch = git(["branch", "--show-current"]);
-const baseRef = remote + "/" + base;
-const commits = git(["log", "--reverse", "--format=%h%x09%s", baseRef + "..HEAD"])
-  .split("\n")
-  .filter(Boolean)
-  .map((line) => {
-    const [sha, subject] = line.split("\t");
-    const files = git(["show", "--name-only", "--format=", sha]).split("\n").filter(Boolean);
-    return { sha, subject, files };
-  });
+## 4. PR body
 
-if (!commits.length) {
-  console.error("No commits on " + branch + " ahead of " + baseRef + " (run git fetch?)");
-  process.exit(1);
-}
+Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The script uses only files inside the skill folder.
 
-const stat = git(["diff", "--shortstat", baseRef + "...HEAD"]);
-const fileCount = git(["diff", "--name-only", baseRef + "...HEAD"]).split("\n").filter(Boolean).length;
-const short = (f) => (f.length > 70 ? "…" + f.slice(-69) : f);
-const cell = (s) => s.replace(/\|/g, "\\|");
+1. Make sure the branch is pushed: `git push -u origin <branch>` — never force-push.
+2. Run `node scripts/pr-draft.js` from the repo root.
+3. The body uses this structure:
+   - Summary: 1–3 lines — why, scope, and what is intentionally out of scope, with the Jira ticket next to it (e.g. `Jira: ABC-123`).
+   - Changes: a list of the commits in this branch and what each one does.
+   - Testing: which tests/builds were run and the result.
+   - Follow-up: anything left to do, and the next step for the reviewer.
+4. Generate the body with `node scripts/pr-draft.js`, inspect it, then paste it into the PR description — do not paste anything the script did not generate. The script puts the Jira ticket next to the Summary; if it cannot find a ticket, it says a ticket is required instead of inventing one.
+5. If the user gives you a PR title, use it. Otherwise, use the ticket key plus a short summary of the whole branch, e.g. `ABC-123 Add login validation`.
 
-const lines = ["## Summary", summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|"];
-for (const c of commits) {
-  lines.push(
-    "| `" + c.sha + "` | " + cell(c.subject) + " | " + c.files.map((f) => "`" + cell(short(f)) + "`").join("<br>") + " |"
-  );
-}
-lines.push("", "**Files changed (" + fileCount + "):** " + stat, "");
-if (extraFile) lines.push(fs.readFileSync(extraFile, "utf8").trim(), "");
-lines.push("## References", refs || "_None_", "");
-if (footer) lines.push(footer);
-const body = lines.join("\n").trim() + "\n";
+## 5. Open the PR
 
-const out = path.join(os.tmpdir(), "pr-" + branch.replace(/[^\w.-]+/g, "_") + ".md");
-fs.writeFileSync(out, body);
+1. If `gh` is available, run the `gh` command exactly as `scripts/pr-draft.js` prints it, then check that the PR was created.
+2. If `gh` is not available, print the exact PR creation URL the script prints and the full PR title and body, so the user can paste them.
+3. Do not edit the PR body by hand unless the user asks for a change. If they do, make the change, then regenerate the body with the script.
+4. Never open a PR per commit unless the user explicitly asks for separate PRs.
 
-const q = (s) => '"' + s.replace(/"/g, '\\"') + '"';
-const info = remoteInfo(remote);
-console.log("TITLE: " + title);
-console.log("BODY FILE: " + out + "  (" + commits.length + " commits, " + fileCount + " files)");
 
-if (info) {
-  const ghBase = "gh pr %s --repo " + info.host + "/" + info.slug;
-  console.log("\n# gh (authenticated):");
-  console.log("  new PR:      " + ghBase.replace("%s", "create") + " --base " + base + " --head " + q(branch) +
-    " --title " + q(title) + " --body-file " + q(out));
-  console.log("  existing PR: " + ghBase.replace("%s", "edit") + " " + q(branch) +
-    " --title " + q(title) + " --body-file " + q(out));
 
-  const compare = info.web + "/compare/" + base + "..." + encodeURIComponent(branch) + "?expand=1&title=" +
-    encodeURIComponent(title);
-  const full = compare + "&body=" + encodeURIComponent(body);
-  console.log("\n# Browser (title and body prefilled):");
-  if (full.length > 7500) {
-    console.log("  Body too long for a URL; title-only link below, paste the body from " + out);
-    console.log("  " + compare);
-  } else {
-    console.log("  " + full);
-  }
-} else {
-  console.log("\nNo parsable '" + remote + "' remote; paste the body from " + out);
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ~~~~
