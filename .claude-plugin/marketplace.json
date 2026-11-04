@@ -12,7 +12,7 @@
       "description": "Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.",
       "name": "agent-playbook",
       "source": "./",
-      "version": "1.0.2"
+      "version": "1.0.3"
     }
   ]
 }

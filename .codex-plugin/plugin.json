@@ -34,5 +34,5 @@
   "name": "agent-playbook",
   "repository": "https://github.com/kxg50820/agent-playbook",
   "skills": "./skills/",
-  "version": "1.0.2"
+  "version": "1.0.3"
 }
