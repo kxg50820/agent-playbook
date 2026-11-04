@@ -59,6 +59,11 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|
 | `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
+
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
@@ -147,6 +152,7 @@ agent-playbook/
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
+├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── PLAYBOOK.md
 └── README.md   # install + usage
@@ -1849,7 +1855,7 @@ const fileCount = git(["diff", "--name-only", baseRef + "...HEAD"]).split("\n").
 const short = (f) => (f.length > 70 ? "…" + f.slice(-69) : f);
 const cell = (s) => s.replace(/\|/g, "\\|");
 const summaryLine = ticket ? "Jira: " + ticket : "Jira ticket required — ask the user for the ticket before committing; none was given and none was found in the branch name.";
-const lines = ["## Summary", summaryLine, summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|" , ""];
+const lines = ["## Summary", summaryLine, summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|"];
 for (const c of commits) {
   lines.push(
     "| `" + c.sha + "` | " + cell(c.subject) + " | " + c.files.map((f) => "`" + cell(short(f)) + "`").join("<br>") + " |"
@@ -2013,6 +2019,26 @@ test("pr-draft does not mistake dates or standards for Jira tickets", () => {
     const r = spawnSync("node", [script, "--title", "t", "--summary", "s"], { cwd: repo, encoding: "utf8" });
     assert.strictEqual(!/WARNING: No Jira ticket/.test(r.stdout + r.stderr), expected, branch + "\n" + r.stdout + r.stderr);
   }
+});
+
+test("pr-draft commits table has no blank line between header and rows", () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "pr-"));
+  const run = (...a) => spawnSync("git", a, { cwd: repo, encoding: "utf8" });
+  run("init", "-q", "-b", "main");
+  run("config", "user.email", "t@t.t");
+  run("config", "user.name", "t");
+  fs.writeFileSync(path.join(repo, "a"), "1");
+  run("add", "-A");
+  run("commit", "-qm", "base");
+  run("update-ref", "refs/remotes/origin/main", "HEAD");
+  run("checkout", "-q", "-b", "ABC-1-table");
+  fs.writeFileSync(path.join(repo, "b"), "2");
+  run("add", "-A");
+  run("commit", "-qm", "change");
+  const script = path.join(ROOT, "skills", "split-commit-pr", "scripts", "pr-draft.js");
+  const r = spawnSync("node", [script, "--title", "t", "--summary", "s"], { cwd: repo, encoding: "utf8" });
+  const bodyFile = r.stdout.match(/BODY FILE: (.+?)\s{2}\(/)[1];
+  assert.match(fs.readFileSync(bodyFile, "utf8"), /\|---\|---\|---\|\n\| `/);
 });
 ~~~~
 
