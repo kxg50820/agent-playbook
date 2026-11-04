@@ -1,1 +1,18 @@
-{"$schema":"https://anthropic.com/claude-code/marketplace.schema.json","description":"A portable AI coding workflow: rules, skills and git guardrails that follow you across tools, teams and companies.","name":"agent-playbook","owner":{"name":"Kruthik Gandrathi","url":"https://github.com/kxg50820"},"plugins":[{"category":"productivity","description":"Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.","name":"agent-playbook","source":"./"}]}
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "description": "A portable AI coding workflow: rules, skills and git guardrails that follow you across tools, teams and companies.",
+  "name": "agent-playbook",
+  "owner": {
+    "name": "Kruthik Gandrathi",
+    "url": "https://github.com/kxg50820"
+  },
+  "plugins": [
+    {
+      "category": "productivity",
+      "description": "Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.",
+      "name": "agent-playbook",
+      "source": "./",
+      "version": "1.0.1"
+    }
+  ]
+}
