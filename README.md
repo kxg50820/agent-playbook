@@ -3,12 +3,12 @@
 *One rulebook, a handful of skills, and guardrails that actually run — the same AI coding workflow on every machine, in every tool.*
 
 ![works with](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Copilot%20%C2%B7%20Cursor%20%C2%B7%20Gemini-111111?style=flat-square)
-![skills](https://img.shields.io/badge/skills-8-111111?style=flat-square)
-![files](https://img.shields.io/badge/files-42-111111?style=flat-square)
+![skills](https://img.shields.io/badge/skills-9-111111?style=flat-square)
+![files](https://img.shields.io/badge/files-48-111111?style=flat-square)
 ![node](https://img.shields.io/badge/node-18%2B-111111?style=flat-square)
 ![dependencies](https://img.shields.io/badge/dependencies-0-111111?style=flat-square)
 
-**42 files · 8 skills · 3 layers of guardrails · 0 npm dependencies**
+**48 files · 9 skills · 3 layers of guardrails · 0 npm dependencies**
 
 Most AI coding setups live in one tool, on one machine, and quietly rot. This repo is the opposite: one source of truth for how I want an agent to work — the rules it follows, the skills it can pick up, and the hooks that stop the dangerous commands even when nobody is watching.
 
@@ -40,13 +40,33 @@ Three layers, each doing one job:
 | `install.js` | One command to install everything. |
 | `config.example.json` | Example config for protected branches. |
 | `lib/` | Shared code used by `install.js` and the hooks. |
+| `.claude-plugin/` | Claude Code plugin manifest and marketplace listing. |
+| `.codex-plugin/`, `.agents/plugins/` | Codex plugin manifest and marketplace listing. |
 | `PLAYBOOK.md` | This whole kit as one generated file — see below. |
 
 ## Install
 
-**Requirements:** Node.js 18+, git on your PATH. (Bash is only needed for the per-project hooks on macOS / Linux; the Node hooks run anywhere.)
+**Requirements:** Node.js 18+, git on your PATH. (Bash is only needed for the per-project hooks on macOS / Linux; the Node hooks run anywhere. The plugin route needs neither Node nor git — the tool fetches everything.)
 
-Recommended — one machine, every tool:
+### Recommended — install as a plugin, no clone
+
+In **Claude Code**:
+
+```
+/plugin marketplace add kxg50820/agent-playbook
+/plugin install agent-playbook@agent-playbook
+```
+
+In **Codex**:
+
+```bash
+codex plugin marketplace add kxg50820/agent-playbook
+codex plugin add agent-playbook@agent-playbook
+```
+
+The tool downloads the plugin and registers the skills and the guard hook for you; updates arrive through the tool as well. Nothing is cloned and nothing needs editing. (While this repo is private, the plugin route needs a GitHub login with access to it; the clone route below installs the same content by hand.)
+
+### From a clone — one machine, every tool
 
 ```bash
 node install.js --git-hooks --agent-guard
@@ -80,6 +100,7 @@ cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
 
 | Skill | When you reach for it | What it does |
 |---|---|---|
+| `agent-playbook` | Any task, in a project using this playbook | The umbrella skill: the standing rules, plus routing to the right skill below — with compact fallbacks if the others aren't installed. |
 | `split-commit-pr` | A branch is done and messy | Splits it into clean, logical commits and drafts the PR. **Jira ticket first:** the ticket goes in the PR description next to the Summary — and if there is no ticket in your message or the branch name, it asks before committing. Never invents one. |
 | `change-ticket-release` | A change needs a ticket or a release | Writes the change ticket and release notes; its script diffs JSON semantically, so key-order noise disappears. |
 | `ponytail` | Everyday coding | The smallest complete change: a YAGNI ladder (need it? → already here? → stdlib/platform? → installed dependency? → one line? → minimum that works), with `lite` / `full` / `ultra` levels. Never cuts validation, data-loss handling, security or accessibility. |
@@ -140,6 +161,9 @@ It still gets the rules: the entry-point files (`CLAUDE.md`, `.muserules`, Copil
 
 **Windows or Mac?**
 Both. The installer and the guards are Node and cross-platform; only the small per-project bash hooks assume macOS / Linux.
+
+**Can I use this without cloning the repo?**
+Yes. Install it as a plugin (see Install) and the tool fetches it for you. On a tool without plugin support, copy a single `skills/<name>/` folder into its skills directory, or paste `PLAYBOOK.md` into the chat.
 
 **Why is this repo private?**
 It's a personal workflow, tuned to my projects and my employers' conventions. The Ponytail parts remain MIT under their own attribution, as noted in each imported file.
