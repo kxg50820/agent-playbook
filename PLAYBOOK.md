@@ -60,7 +60,7 @@ This single file contains the catalogue, the folder structure and the full sourc
 
 ## 2. Structure
 
-54 files total, including `PLAYBOOK.md`.
+56 files total, including `PLAYBOOK.md`.
 
 ```text
 agent-playbook/
@@ -105,6 +105,7 @@ agent-playbook/
 │   ├── config.js
 │   └── git.js
 ├── scripts/   # maintainer tooling
+│   ├── build-playbook.js   # regenerates the file sections of PLAYBOOK.md
 │   └── check-version-bump.js
 ├── skills/   # SKILL.md skills (open format)
 │   ├── change-ticket-release/
@@ -135,6 +136,7 @@ agent-playbook/
 │       └── SKILL.md
 ├── test/   # node:test checks for the guards, pre-commit scan and PR draft
 │   ├── guards.test.js
+│   ├── playbook.test.js
 │   ├── version-bump.test.js
 │   └── versions.test.js
 ├── .gitignore
@@ -494,6 +496,13 @@ Pick up a ticket → branch named with the ticket → code with ponytail on → 
 `PLAYBOOK.md` is this same kit compiled into one generated file — for when you can't clone the repo, or a tool only accepts pasted text. It holds a catalogue, the folder structure, an extract script that rebuilds the repo from the file, and the full source of every other file.
 
 It is generated, not hand-written: change a source file, regenerate `PLAYBOOK.md`, then commit.
+
+```bash
+node scripts/build-playbook.js           # rewrite the file sections of PLAYBOOK.md
+node scripts/build-playbook.js --check   # fail if it is out of date (npm test runs this)
+```
+
+The catalogue and folder tree at the top are hand-written: when you add a file, list it there too (the check tells you if you forget). `git add` new files first; only tracked files are included.
 
 ## FAQ
 
@@ -1101,6 +1110,83 @@ module.exports = { git, currentBranch };
     "test": "node --test test/*.test.js"
   }
 }
+~~~~
+
+### `scripts/build-playbook.js`
+
+<!-- file: scripts/build-playbook.js -->
+~~~~js
+#!/usr/bin/env node
+/*
+ * Regenerates section 4 of PLAYBOOK.md (the full source of every tracked file) and the file count.
+ * The catalogue, folder tree and extract script above section 4 are hand-written and left as they are.
+ *
+ *   node scripts/build-playbook.js           rewrite PLAYBOOK.md
+ *   node scripts/build-playbook.js --check   exit 1 if PLAYBOOK.md is out of date (used by npm test)
+ *
+ * Only tracked files are included: `git add` (or `git add -N`) a new file first.
+ */
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const { spawnSync } = require("child_process");
+
+const ROOT = path.join(__dirname, "..");
+const TARGET = path.join(ROOT, "PLAYBOOK.md");
+const MARKER = "## 4. Files\n\n";
+// Plugin packaging files come last, after the ordinary files, in this order.
+const TAIL = [".agents/plugins/marketplace.json", ".claude-plugin/marketplace.json", ".claude-plugin/plugin.json",
+  ".codex-plugin/plugin.json", "hooks/plugin-hooks.json", "skills/playbook/SKILL.md"];
+
+const lf = (s) => s.replace(/\r\n/g, "\n");
+const read = (f) => lf(fs.readFileSync(path.join(ROOT, f), "utf8"));
+const lang = (f) =>
+  f.endsWith(".md") ? "markdown" : f.endsWith(".json") ? "json" : f.endsWith(".yml") ? "yaml" : f.endsWith(".js") ? "js"
+    : /^(git-hooks|hooks)\/[^.\/]+$/.test(f) ? "bash" : "";
+
+function build() {
+  const ls = spawnSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" });
+  if (ls.status !== 0) throw new Error("git ls-files failed: " + ls.stderr);
+  const all = ls.stdout.split("\n").filter(Boolean);
+  const files = all.filter((f) => f !== "PLAYBOOK.md");
+
+  const old = read("PLAYBOOK.md");
+  const cut = old.indexOf(MARKER);
+  if (cut < 0) throw new Error("PLAYBOOK.md has no '" + MARKER.trim() + "' heading");
+  let head = old.slice(0, cut + MARKER.length).replace(/\d+ files total/, all.length + " files total");
+
+  const ordinary = files.filter((f) => !TAIL.includes(f)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const order = [...ordinary, ...TAIL.filter((f) => files.includes(f))];
+  const block = (f) => "### `" + f + "`\n\n<!-- file: " + f + " -->\n~~~~" + lang(f) + "\n" + read(f).replace(/\n$/, "") + "\n~~~~\n";
+
+  // Every tracked file should be named somewhere in the hand-written tree.
+  const missing = files.filter((f) => !head.includes(path.basename(f)));
+  return { text: head + order.map(block).join("\n"), missing, old };
+}
+
+function main() {
+  const check = process.argv.includes("--check");
+  const { text, missing, old } = build();
+  let ok = true;
+  if (missing.length) {
+    console.error("These files are not in the PLAYBOOK.md folder tree (add them by hand):\n  " + missing.join("\n  "));
+    ok = false;
+  }
+  if (check) {
+    if (text !== old) {
+      console.error("PLAYBOOK.md is out of date. Run: node scripts/build-playbook.js");
+      ok = false;
+    }
+    if (ok) console.log("PLAYBOOK.md is up to date.");
+    return ok ? 0 : 1;
+  }
+  fs.writeFileSync(TARGET, text);
+  console.log("Wrote PLAYBOOK.md");
+  return ok ? 0 : 1;
+}
+
+process.exit(main());
 ~~~~
 
 ### `scripts/check-version-bump.js`
@@ -2141,6 +2227,23 @@ test("pr-draft commits table has no blank line between header and rows", () => {
   const r = spawnSync("node", [script, "--title", "t", "--summary", "s"], { cwd: repo, encoding: "utf8" });
   const bodyFile = r.stdout.match(/BODY FILE: (.+?)\s{2}\(/)[1];
   assert.match(fs.readFileSync(bodyFile, "utf8"), /\|---\|---\|---\|\n\| `/);
+});
+~~~~
+
+### `test/playbook.test.js`
+
+<!-- file: test/playbook.test.js -->
+~~~~js
+"use strict";
+// PLAYBOOK.md embeds the source of every file. If it drifts, people who rebuild from it get stale code.
+const test = require("node:test");
+const assert = require("node:assert");
+const path = require("path");
+const { spawnSync } = require("child_process");
+
+test("PLAYBOOK.md is up to date with the repo", () => {
+  const r = spawnSync("node", [path.join(__dirname, "..", "scripts", "build-playbook.js"), "--check"], { encoding: "utf8" });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
 });
 ~~~~
 

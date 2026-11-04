@@ -159,6 +159,13 @@ Pick up a ticket → branch named with the ticket → code with ponytail on → 
 
 It is generated, not hand-written: change a source file, regenerate `PLAYBOOK.md`, then commit.
 
+```bash
+node scripts/build-playbook.js           # rewrite the file sections of PLAYBOOK.md
+node scripts/build-playbook.js --check   # fail if it is out of date (npm test runs this)
+```
+
+The catalogue and folder tree at the top are hand-written: when you add a file, list it there too (the check tells you if you forget). `git add` new files first; only tracked files are included.
+
 ## FAQ
 
 **Do the skills change code on their own?**
