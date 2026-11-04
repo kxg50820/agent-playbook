@@ -24,9 +24,17 @@ This single file contains the catalogue, the folder structure and the full sourc
 | `.muserules` | Cursor | Points to AGENTS.md |
 | `README.md` | Project docs | Overview of the rules, skills, installation and guardrails |
 
+### Plugins
+| Path | Tool | Content |
+|---|---|---|
+| `.claude-plugin/` | Claude Code | Plugin manifest and marketplace listing |
+| `.codex-plugin/` + `.agents/plugins/` | Codex | Plugin manifest and marketplace listing |
+| `hooks/plugin-hooks.json` | Claude Code | Wires the agent guard into plugin tool-call hooks |
+
 ### Skills (`skills/`)
 | Skill | Use when | Helper script |
 |---|---|---|
+| `agent-playbook` | Any task in a project using this playbook; routes work to the relevant skill | — |
 | `split-commit-pr` | Create a branch, split work into logical commits, push (never force), open ONE PR whose title/body cover the whole branch; ask for the Jira ticket before committing if missing | `scripts/pr-draft.js` — builds the PR body from all commits, prints `gh` commands and a prefilled compare URL |
 | `_template` | Starting point for a new skill (not installed) | — |
 | `change-ticket-release` | Promote validated changes (e.g. stage → prod) under a change ticket: ask ticket first, branch named after it, parity table, copy only approved items | `scripts/json-diff.js` — semantic JSON diff (ignores key order/BOM, matches array items by id) |
@@ -43,14 +51,23 @@ This single file contains the catalogue, the folder structure and the full sourc
 | `git-hooks/pre-push` → `guards/pre-push.js` | git itself (any tool or human), via global `core.hooksPath` | Blocks force-push, deleting protected branches, direct push to `main`/`master` (per-repo opt-in: `git config agentPlaybook.allowProtectedPush true`) |
 | `git-hooks/<other hooks>` | git | No guard; just chain to the repo's own `.git/hooks/<name>` so husky etc. keep working |
 | `hooks/pre-commit` (bash) | One repo, copied to `.git/hooks/pre-commit` | Blocks secret-looking files (.env, .pem, .key, id_rsa, credentials), token-shaped strings, and files > 5 MB |
-| `agent-hooks/guard.js` | Agents with `PreToolUse` command hooks (see `adapters/`) | Denies force-push commands; asks before commit/push on a protected branch. Fails open |
+| `hooks/plugin-hooks.json` | Claude Code plugin | Runs `agent-hooks/guard.js` before Bash / PowerShell calls |
+| `agent-hooks/guard.js` | Agents with command hooks | Denies force-push commands; asks before commit/push on a protected branch. Fails open |
 
 ## 2. Structure
 
-42 files total, including `PLAYBOOK.md`.
+48 files total, including `PLAYBOOK.md`.
 
 ```text
 agent-playbook/
+├── .agents/
+│   └── plugins/
+│       └── marketplace.json
+├── .claude-plugin/
+│   ├── marketplace.json
+│   └── plugin.json
+├── .codex-plugin/
+│   └── plugin.json
 ├── .github/
 │   └── muse-instructions.md   # Copilot entry point -> AGENTS.md
 ├── adapters/   # hook config snippets per tool
@@ -75,13 +92,16 @@ agent-playbook/
 │   ├── pre-push
 │   ├── pre-rebase
 │   └── run-hook.js   # dispatcher: guard, then the repo's own .git/hooks/<name>
-├── hooks/   # per-project bash git hooks
+├── hooks/   # per-project bash hooks and plugin hook configuration
+│   ├── plugin-hooks.json
 │   └── pre-commit
 ├── lib/   # shared helpers for hooks/installer
 │   ├── config.js
 │   └── git.js
 ├── skills/   # SKILL.md skills (open format)
-│   ├── _template/   # starting point for new skills
+│   ├── _template/   # starting point for a new skill
+│   │   └── SKILL.md
+│   ├── agent-playbook/
 │   │   └── SKILL.md
 │   ├── change-ticket-release/
 │   │   ├── scripts/
@@ -113,7 +133,6 @@ agent-playbook/
 ├── PLAYBOOK.md
 └── README.md   # install + usage
 ```
-
 ## 3. Rebuild the repo from this file
 
 Save the script below as `extract.js` next to this file, then run (macOS, Linux or Windows):
@@ -299,12 +318,12 @@ Claude-specific notes:
 *One rulebook, a handful of skills, and guardrails that actually run — the same AI coding workflow on every machine, in every tool.*
 
 ![works with](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Copilot%20%C2%B7%20Cursor%20%C2%B7%20Gemini-111111?style=flat-square)
-![skills](https://img.shields.io/badge/skills-8-111111?style=flat-square)
-![files](https://img.shields.io/badge/files-42-111111?style=flat-square)
+![skills](https://img.shields.io/badge/skills-9-111111?style=flat-square)
+![files](https://img.shields.io/badge/files-48-111111?style=flat-square)
 ![node](https://img.shields.io/badge/node-18%2B-111111?style=flat-square)
 ![dependencies](https://img.shields.io/badge/dependencies-0-111111?style=flat-square)
 
-**42 files · 8 skills · 3 layers of guardrails · 0 npm dependencies**
+**48 files · 9 skills · 3 layers of guardrails · 0 npm dependencies**
 
 Most AI coding setups live in one tool, on one machine, and quietly rot. This repo is the opposite: one source of truth for how I want an agent to work — the rules it follows, the skills it can pick up, and the hooks that stop the dangerous commands even when nobody is watching.
 
@@ -336,13 +355,33 @@ Three layers, each doing one job:
 | `install.js` | One command to install everything. |
 | `config.example.json` | Example config for protected branches. |
 | `lib/` | Shared code used by `install.js` and the hooks. |
+| `.claude-plugin/` | Claude Code plugin manifest and marketplace listing. |
+| `.codex-plugin/`, `.agents/plugins/` | Codex plugin manifest and marketplace listing. |
 | `PLAYBOOK.md` | This whole kit as one generated file — see below. |
 
 ## Install
 
-**Requirements:** Node.js 18+, git on your PATH. (Bash is only needed for the per-project hooks on macOS / Linux; the Node hooks run anywhere.)
+**Requirements:** Node.js 18+, git on your PATH. (Bash is only needed for the per-project hooks on macOS / Linux; the Node hooks run anywhere. The plugin route needs neither Node nor git — the tool fetches everything.)
 
-Recommended — one machine, every tool:
+### Recommended — install as a plugin, no clone
+
+In **Claude Code**:
+
+```
+/plugin marketplace add kxg50820/agent-playbook
+/plugin install agent-playbook@agent-playbook
+```
+
+In **Codex**:
+
+```bash
+codex plugin marketplace add kxg50820/agent-playbook
+codex plugin add agent-playbook@agent-playbook
+```
+
+The tool downloads the plugin and registers the skills and the guard hook for you; updates arrive through the tool as well. Nothing is cloned and nothing needs editing. (While this repo is private, the plugin route needs a GitHub login with access to it; the clone route below installs the same content by hand.)
+
+### From a clone — one machine, every tool
 
 ```bash
 node install.js --git-hooks --agent-guard
@@ -376,6 +415,7 @@ cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
 
 | Skill | When you reach for it | What it does |
 |---|---|---|
+| `agent-playbook` | Any task, in a project using this playbook | The umbrella skill: the standing rules, plus routing to the right skill below — with compact fallbacks if the others aren't installed. |
 | `split-commit-pr` | A branch is done and messy | Splits it into clean, logical commits and drafts the PR. **Jira ticket first:** the ticket goes in the PR description next to the Summary — and if there is no ticket in your message or the branch name, it asks before committing. Never invents one. |
 | `change-ticket-release` | A change needs a ticket or a release | Writes the change ticket and release notes; its script diffs JSON semantically, so key-order noise disappears. |
 | `ponytail` | Everyday coding | The smallest complete change: a YAGNI ladder (need it? → already here? → stdlib/platform? → installed dependency? → one line? → minimum that works), with `lite` / `full` / `ultra` levels. Never cuts validation, data-loss handling, security or accessibility. |
@@ -436,6 +476,9 @@ It still gets the rules: the entry-point files (`CLAUDE.md`, `.muserules`, Copil
 
 **Windows or Mac?**
 Both. The installer and the guards are Node and cross-platform; only the small per-project bash hooks assume macOS / Linux.
+
+**Can I use this without cloning the repo?**
+Yes. Install it as a plugin (see Install) and the tool fetches it for you. On a tool without plugin support, copy a single `skills/<name>/` folder into its skills directory, or paste `PLAYBOOK.md` into the chat.
 
 **Why is this repo private?**
 It's a personal workflow, tuned to my projects and my employers' conventions. The Ponytail parts remain MIT under their own attribution, as noted in each imported file.
@@ -2005,4 +2048,97 @@ End with:
 Nothing found: `What this change does:`, then `Looks good. Ship.` and one line on what you checked.
 
 Lists findings, changes no code.
+~~~~
+
+### `.agents/plugins/marketplace.json`
+
+<!-- file: .agents/plugins/marketplace.json -->
+~~~~json
+{"interface":{"displayName":"Agent Playbook"},"name":"agent-playbook","plugins":[{"category":"Productivity","name":"agent-playbook","policy":{"authentication":"ON_INSTALL","installation":"AVAILABLE"},"source":{"ref":"main","source":"url","url":"https://github.com/kxg50820/agent-playbook.git"}}]}
+~~~~
+
+### `.claude-plugin/marketplace.json`
+
+<!-- file: .claude-plugin/marketplace.json -->
+~~~~json
+{"$schema":"https://anthropic.com/claude-code/marketplace.schema.json","description":"A portable AI coding workflow: rules, skills and git guardrails that follow you across tools, teams and companies.","name":"agent-playbook","owner":{"name":"Kruthik Gandrathi","url":"https://github.com/kxg50820"},"plugins":[{"category":"productivity","description":"Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.","name":"agent-playbook","source":"./"}]}
+~~~~
+
+### `.claude-plugin/plugin.json`
+
+<!-- file: .claude-plugin/plugin.json -->
+~~~~json
+{"author":{"name":"Kruthik Gandrathi","url":"https://github.com/kxg50820"},"description":"Portable AI coding workflow: standing agent rules, a library of skills for commits, PRs, reviews, audits, debt and releases, plus git safety guard hooks.","homepage":"https://github.com/kxg50820/agent-playbook","hooks":["./hooks/plugin-hooks.json"],"keywords":["skills","code-review","git-hooks","workflow","agents"],"name":"agent-playbook","repository":"https://github.com/kxg50820/agent-playbook","version":"1.0.0"}
+~~~~
+
+### `.codex-plugin/plugin.json`
+
+<!-- file: .codex-plugin/plugin.json -->
+~~~~json
+{"author":{"name":"Kruthik Gandrathi","url":"https://github.com/kxg50820"},"description":"Portable AI coding workflow: standing agent rules, a library of skills for commits, PRs, reviews, audits, debt and releases, plus git safety guard hooks.","homepage":"https://github.com/kxg50820/agent-playbook","hooks":"./hooks/plugin-hooks.json","interface":{"brandColor":"#111111","capabilities":["Instructions","Lifecycle hooks"],"category":"Productivity","defaultPrompt":["Use the agent-playbook rules for this task.","Review this diff with ponytail-review.","Split this branch into clean commits and draft the PR."],"developerName":"Kruthik Gandrathi","displayName":"Agent Playbook","longDescription":"Standing AGENTS.md rules, nine skills for everyday engineering work (smallest-change coding, diff and repo reviews, debt tracking, clean commits and PRs, change tickets and releases), and guard hooks that block force-pushes and secret leaks.","shortDescription":"Portable AI coding workflow: rules, skills, guardrails","websiteURL":"https://github.com/kxg50820/agent-playbook"},"keywords":["skills","code-review","git-hooks","workflow","agents"],"name":"agent-playbook","repository":"https://github.com/kxg50820/agent-playbook","skills":"./skills/","version":"1.0.0"}
+~~~~
+
+### `hooks/plugin-hooks.json`
+
+<!-- file: hooks/plugin-hooks.json -->
+~~~~json
+{"hooks":{"PreToolUse":[{"hooks":[{"command":"node \"${CLAUDE_PLUGIN_ROOT}/agent-hooks/guard.js\"","statusMessage":"Checking agent-playbook guardrails...","timeout":15,"type":"command"}],"matcher":"Bash|PowerShell"}]}}
+~~~~
+
+### `skills/agent-playbook/SKILL.md`
+
+<!-- file: skills/agent-playbook/SKILL.md -->
+~~~~markdown
+---
+name: agent-playbook
+description: The standing rules and skill routing for Kruthik Gandrathi's agent-playbook. Use at the start of any coding task in a project that has adopted this playbook: it sets how the agent should work (understand first, smallest complete change, surgical edits, verify before claiming done, git safety, Jira ticket first) and which bundled skill to reach for (ponytail for coding, ponytail-review for diffs, ponytail-audit for whole repos, ponytail-debt for shortcuts, split-commit-pr for commits and PRs, change-ticket-release for releases). Also usable on its own, without the rest of the plugin: the rules and compact checklists below are self-contained.
+---
+
+# agent-playbook — the umbrella skill
+
+This is the front door to the playbook. It carries the standing rules every task follows, and it routes bigger jobs to the specialised skills bundled with it. If those skills are not installed, the compact fallbacks in this file still apply — follow them inline instead of skipping the step.
+
+## Standing rules
+
+### How to work
+1. **Understand before editing.** Read the code the change touches and trace the real flow. State your assumptions; when two readings of the request are possible, name them instead of silently picking one.
+2. **Smallest complete change.** Prefer what already exists in the codebase, then the standard library / platform, then an installed dependency, then the minimum new code that fully solves the problem. No abstractions, options, or scaffolding nobody asked for.
+3. **Surgical edits.** Touch only what the task requires. Match the file's existing style. Mention unrelated problems you notice; do not fix them unasked, and do not clean up your own mess in files you didn't need to touch.
+4. **Verify, then say so.** Run the project's tests / lint / build after a change. If a check fails, report it plainly — never claim success over a red result, and never hide a step you skipped.
+
+### Git safety
+- Never force-push. Never rewrite history or amend a pushed commit.
+- Never push directly to a protected branch (`main` / `master` unless the project says otherwise).
+- Never commit `.env`, `.pem`, `.key` files, private keys, tokens or passwords — and stop if you see one staged.
+- Destructive commands (`rm -rf`, `git reset --hard`, `git clean -fd`) need explicit approval first.
+- **Jira ticket first.** Before committing, find the ticket: first in what the user gave you, then in the branch name (e.g. `ABC-123`). If neither has one, **ask before committing** — never invent a ticket. When there is one, it goes in the PR description next to the Summary.
+
+### Stack defaults
+Unless the project overrides them: Java services, TypeScript / React front ends, Python for scripting and data work, AWS for cloud. Prefer the project's existing libraries and patterns over new ones.
+
+## Route the job
+
+| The job in front of you | Reach for |
+|---|---|
+| Writing or fixing code | `ponytail` (smallest complete change; lite / full / ultra) |
+| Reviewing a change before a PR | `ponytail-review` |
+| Reviewing a whole repo or module | `ponytail-audit` |
+| Collecting deferred shortcuts | `ponytail-debt` |
+| Showing the Ponytail benchmark | `ponytail-gain` |
+| You forgot a command or level | `ponytail-help` |
+| Committing and opening the PR | `split-commit-pr` |
+| Change ticket or release notes | `change-ticket-release` |
+
+## If the routed skill is not installed
+
+Apply these compact versions inline:
+
+- **Review (diff):** read the diff and the code it touches. Group findings as must fix / should fix / nice to have, numbered, in plain English: what the code does, what goes wrong, the fix, and what happens if it's skipped. Check bugs and edge cases, security (injection, auth, secrets), real load, missing tests on risky paths, slow paths, and code that can simply be deleted. Report only — change nothing unless asked.
+- **Commit + PR:** group the changes into small logical commits with clear messages. PR description: `## Summary` first, then `Jira: <ticket>` — and the Jira rule above applies before any commit happens. List the tests you ran in the description.
+- **Release / change ticket:** summarise what changed, why, the risk, and the rollback. For JSON config, diff semantically (ignore key order and formatting) so the ticket shows real changes only.
+- **Debt:** search for `shortcut:` comments and list each with its stated limit and upgrade trigger; flag any that have no trigger.
+
+## Guardrails
+
+When the playbook is installed as a plugin or via `install.js`, guard hooks back these rules up mechanically: force-pushes are blocked before they run, commits and pushes on protected branches ask first, and a pre-commit scan blocks secret files, token patterns and files over 5 MB. The hooks are a safety net, not a substitute for following the rules.
 ~~~~
