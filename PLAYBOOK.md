@@ -84,6 +84,11 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|
 | `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
+
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
@@ -108,6 +113,8 @@ agent-playbook/
 ├── .codex-plugin/
 │   └── plugin.json
 ├── .github/
+│   ├── workflows/
+│   │   └── plugin-version.yml   # CI: tests + version-bump check
 │   ├── workflows/
 │   │   └── plugin-version.yml   # CI: tests + version-bump check
 │   ├── workflows/
@@ -174,6 +181,7 @@ agent-playbook/
 │   ├── guards.test.js
 │   ├── version-bump.test.js
 │   ├── version-bump.test.js
+│   ├── version-bump.test.js
 │   └── versions.test.js
 ├── .gitignore
 ├── .muserules   # Cursor entry point -> AGENTS.md
@@ -181,6 +189,7 @@ agent-playbook/
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
+├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
@@ -1277,6 +1286,7 @@ git log --oneline -5                       # let the user confirm the source cha
 git branch -a --list '<TICKET>' '*/<TICKET>'
 git checkout -b <TICKET>                   # exact name, no suffix
 ```
+- Release branches are named exactly after the ticket, with no slug. This differs on purpose from normal work (`ABC-123-add-login` in `split-commit-pr`).
 - **One ticket = one branch = one PR.** Never reuse another ticket's branch, a feature branch or the default branch.
 - If the branch already exists, ask: continue on it (merge `origin/<default>` in) or stop. Never delete, recreate or force-push it.
 - Uncommitted work: list it and ask before stashing. Never discard it.
@@ -1869,7 +1879,7 @@ Jira ticket first. If you didn't give one and the branch name doesn't have one, 
 ## 1. Sync and branch
 
 1. `git switch main` (or the default branch for this repo) and run `git pull --ff-only`.
-2. Create the branch from the synced main with a ticket-led, lowercase slug, for example `feature/JIRA-123-add-login` (use the actual ticket key).
+2. Create the branch from the synced main, named with the ticket key first and a short lowercase slug after it, for example `ABC-123-add-login` (use the actual ticket key; no `feature/` prefix, same rule as AGENTS.md).
 3. If the user gave a different name, use that name exactly.
 4. Run `git status` to confirm the tree is clean.
 
@@ -1895,12 +1905,12 @@ Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The sc
 
 1. Make sure the branch is pushed: `git push -u origin <branch>` — never force-push.
 2. Run `node scripts/pr-draft.js` from the repo root.
-3. The body uses this structure:
-   - Summary: 1–3 lines — why, scope, and what is intentionally out of scope, with the Jira ticket next to it (e.g. `Jira: ABC-123`).
-   - Changes: a list of the commits in this branch and what each one does.
-   - Testing: which tests/builds were run and the result.
-   - Follow-up: anything left to do, and the next step for the reviewer.
-4. Generate the body with `node scripts/pr-draft.js`, inspect it, then paste it into the PR description — do not paste anything the script did not generate. The script puts the Jira ticket next to the Summary; if it cannot find a ticket, it says a ticket is required instead of inventing one.
+3. The script builds the body with this structure:
+   - Summary: the Jira ticket (e.g. `Jira: ABC-123`) and your `--summary` text, 1–3 lines — why, scope, and what is intentionally out of scope.
+   - Commits: a table of every commit on the branch with its message and files, then the total files changed.
+   - Extra notes (optional): the contents of a file you pass with `--extra-file`. Put the tests/builds you ran with their result, and any follow-up for the reviewer, in that file.
+   - References: the ticket or the `--refs` you gave.
+4. Run `node scripts/pr-draft.js --title "<title>" --summary "<summary>"` (add `--extra-file notes.md` for testing and follow-up), inspect the output, then use it as the PR description — do not paste anything the script did not generate. The script puts the Jira ticket next to the Summary; if it cannot find a ticket, it says a ticket is required instead of inventing one.
 5. If the user gives you a PR title, use it. Otherwise, use the ticket key plus a short summary of the whole branch, e.g. `ABC-123 Add login validation`.
 
 ## 5. Open the PR
@@ -2255,7 +2265,7 @@ test("all plugin manifests carry the same version", () => {
       "description": "Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.",
       "name": "agent-playbook",
       "source": "./",
-      "version": "1.0.2"
+      "version": "1.0.3"
     }
   ]
 }
@@ -2284,7 +2294,7 @@ test("all plugin manifests carry the same version", () => {
   ],
   "name": "agent-playbook",
   "repository": "https://github.com/kxg50820/agent-playbook",
-  "version": "1.0.2"
+  "version": "1.0.3"
 }
 ~~~~
 
@@ -2328,7 +2338,7 @@ test("all plugin manifests carry the same version", () => {
   "name": "agent-playbook",
   "repository": "https://github.com/kxg50820/agent-playbook",
   "skills": "./skills/",
-  "version": "1.0.2"
+  "version": "1.0.3"
 }
 ~~~~
 
