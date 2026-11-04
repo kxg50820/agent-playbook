@@ -1,0 +1,1 @@
+{"hooks":{"PreToolUse":[{"hooks":[{"command":"node \"${CLAUDE_PLUGIN_ROOT}/agent-hooks/guard.js\"","statusMessage":"Checking agent-playbook guardrails...","timeout":15,"type":"command"}],"matcher":"Bash|PowerShell"}]}}
