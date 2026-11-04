@@ -35,7 +35,16 @@ function defaultBranch(remote) {
 function remoteInfo(remote) {
   const url = git(["remote", "get-url", remote], true);
   const m = url.match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](?:\d+\/)?(.+?)(?:\.git)?\/?$/i);
-  return m ? { host: m[1], slug: m[2], web: "https://" + m[1] + "/" + m[2] } : null;
+  if (!m) return null;
+  let host = m[1];
+  if (!host.includes(".")) {
+    // An SSH alias (git@github-personal:owner/repo): ask ssh for the real host name.
+    const r = spawnSync("ssh", ["-G", host], { encoding: "utf8", windowsHide: true });
+    const real = r.status === 0 ? (r.stdout.match(/^hostname (\S+)/m) || [])[1] : "";
+    if (!real || !real.includes(".")) return null;
+    host = real;
+  }
+  return { host, slug: m[2], web: "https://" + host + "/" + m[2] };
 }
 const remote = arg("remote", "origin");
 const base = arg("base", defaultBranch(remote));
@@ -49,62 +58,11 @@ if (!title || !summary) {
   process.exit(1);
 }
 const branch = git(["branch", "--show-current"]);
-const ticketFromRefs = (refs.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
-const ticketFromBranch = (branch.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
+// A ticket starts with a letter (ABC-123). Digits-first matches like 2024-10 are not tickets.
+// In a branch name it leads the name (ABC-123-slug, feature/ABC-123-slug), so SHA-256 or UTF-8 mid-name don't count.
+const ticketFromRefs = (refs.match(/\b[A-Z][A-Z0-9]+-[0-9]+\b/) || [])[0] || "";
+const ticketFromBranch = (branch.match(/(?:^|\/)([A-Z][A-Z0-9]+-[0-9]+)(?=$|[-_\/])/) || [])[1] || "";
 const ticket = ticketFromRefs || ticketFromBranch;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const baseRef = remote + "/" + base;
 const commits = git(["log", "--reverse", "--format=%h%x09%s", baseRef + "..HEAD"])
@@ -161,58 +119,3 @@ if (info) {
 } else {
   console.log("\nNo parsable '" + remote + "' remote; paste the body from " + out);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
