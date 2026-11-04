@@ -74,6 +74,11 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|
 | `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
+
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
@@ -85,7 +90,7 @@ This single file contains the catalogue, the folder structure and the full sourc
 
 ## 2. Structure
 
-51 files total, including `PLAYBOOK.md`.
+54 files total, including `PLAYBOOK.md`.
 
 ```text
 agent-playbook/
@@ -98,6 +103,8 @@ agent-playbook/
 ├── .codex-plugin/
 │   └── plugin.json
 ├── .github/
+│   ├── workflows/
+│   │   └── plugin-version.yml   # CI: tests + version-bump check
 │   └── muse-instructions.md   # Copilot entry point -> AGENTS.md
 ├── adapters/   # hook config snippets per tool
 │   └── claude-code-hooks.json
@@ -127,6 +134,8 @@ agent-playbook/
 ├── lib/   # shared helpers for hooks/installer
 │   ├── config.js
 │   └── git.js
+├── scripts/   # maintainer tooling
+│   └── check-version-bump.js
 ├── skills/   # SKILL.md skills (open format)
 │   ├── change-ticket-release/
 │   │   ├── scripts/
@@ -156,6 +165,7 @@ agent-playbook/
 │       └── SKILL.md
 ├── test/   # node:test checks for the guards, pre-commit scan and PR draft
 │   ├── guards.test.js
+│   ├── version-bump.test.js
 │   └── versions.test.js
 ├── .gitignore
 ├── .muserules   # Cursor entry point -> AGENTS.md
@@ -163,6 +173,7 @@ agent-playbook/
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
+├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
@@ -214,6 +225,40 @@ Follow the rules in AGENTS.md at the repo root: think before coding,
 simplicity first, surgical changes, and goal-driven execution with
 verification. Match existing patterns, run tests after changes, and
 never include secrets or invent APIs.
+~~~~
+
+### `.github/workflows/plugin-version.yml`
+
+<!-- file: .github/workflows/plugin-version.yml -->
+~~~~yaml
+name: plugin-version
+
+# Runs the tests and refuses shipped changes that do not bump the plugin version,
+# because installed plugins only update when the version changes.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - name: Require a version bump when shipped files change
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then BASE="origin/$BASE_REF"; else BASE="$BEFORE_SHA"; fi
+          node scripts/check-version-bump.js "$BASE"
 ~~~~
 
 ### `.gitignore`
@@ -393,7 +438,7 @@ The tool downloads the plugin and registers the skills and the guard hook for yo
 
 **Staying up to date:** installed plugins are cached per version. In Claude Code open `/plugin`, go to Marketplaces, pick `agent-playbook` and turn on auto-update; it then fetches new releases at startup. To update by hand: `/plugin marketplace update agent-playbook`.
 
-**Maintainers:** bump `version` in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` in every change users should receive (`npm test` fails if the three differ). Without a bump, installed copies do not update.
+**Maintainers:** bump `version` in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` in every change users should receive (`npm test` fails if the three differ). Without a bump, installed copies do not update, so CI (`.github/workflows/plugin-version.yml`) fails any PR or push to `main` that changes shipped files (skills, hooks, `lib/`, `install.js`, `AGENTS.md`, config) without one. Check locally with `node scripts/check-version-bump.js origin/main`. Docs, tests, CI and templates need no bump.
 
 ### From a clone — one machine, every tool
 
@@ -1088,6 +1133,76 @@ module.exports = { git, currentBranch };
     "test": "node --test test/*.test.js"
   }
 }
+~~~~
+
+### `scripts/check-version-bump.js`
+
+<!-- file: scripts/check-version-bump.js -->
+~~~~js
+#!/usr/bin/env node
+/*
+ * Fails when files that ship to users changed but the plugin version did not.
+ * Installed plugins are cached per version, so a change without a bump never reaches anyone.
+ *
+ *   node scripts/check-version-bump.js <base-ref>      e.g. origin/main
+ *
+ * Docs, tests, CI and templates do not ship behaviour, so they never need a bump.
+ */
+"use strict";
+
+const { spawnSync } = require("child_process");
+
+const NO_BUMP_NEEDED = [
+  /^README\.md$/,
+  /^PLAYBOOK\.md$/,
+  /^CLAUDE\.md$/,
+  /^\.muserules$/,
+  /^\.gitignore$/,
+  /^package\.json$/,
+  /^test\//,
+  /^scripts\//,
+  /^templates\//,
+  /^\.github\//,
+];
+
+const needsBump = (files) => files.filter((f) => !NO_BUMP_NEEDED.some((re) => re.test(f)));
+
+function git(args) {
+  const r = spawnSync("git", args, { encoding: "utf8" });
+  return r.status === 0 ? r.stdout : null;
+}
+
+function versionAt(ref) {
+  const text = git(["show", ref + ":.claude-plugin/plugin.json"]);
+  return text ? JSON.parse(text).version : null;
+}
+
+function main(base) {
+  if (!base || /^0+$/.test(base)) {
+    console.log("No base to compare with (first push); skipping.");
+    return 0;
+  }
+  const changed = (git(["diff", "--name-only", base, "HEAD"]) || "").split("\n").filter(Boolean);
+  const shipped = needsBump(changed);
+  if (!shipped.length) {
+    console.log("No shipped files changed; no version bump needed.");
+    return 0;
+  }
+  const before = versionAt(base);
+  const after = versionAt("HEAD");
+  if (before && before === after) {
+    console.error("Shipped files changed but the plugin version is still " + after + ":");
+    for (const f of shipped) console.error("  " + f);
+    console.error("Bump \"version\" in .claude-plugin/plugin.json, .claude-plugin/marketplace.json and .codex-plugin/plugin.json,");
+    console.error("or users with the plugin installed will not receive this change.");
+    return 1;
+  }
+  console.log("Version " + before + " -> " + after + ": shipped changes will reach users.");
+  return 0;
+}
+
+module.exports = { needsBump };
+if (require.main === module) process.exit(main(process.argv[2]));
 ~~~~
 
 ### `skills/README.md`
@@ -2057,6 +2172,26 @@ test("pr-draft commits table has no blank line between header and rows", () => {
   const r = spawnSync("node", [script, "--title", "t", "--summary", "s"], { cwd: repo, encoding: "utf8" });
   const bodyFile = r.stdout.match(/BODY FILE: (.+?)\s{2}\(/)[1];
   assert.match(fs.readFileSync(bodyFile, "utf8"), /\|---\|---\|---\|\n\| `/);
+});
+~~~~
+
+### `test/version-bump.test.js`
+
+<!-- file: test/version-bump.test.js -->
+~~~~js
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert");
+const { needsBump } = require("../scripts/check-version-bump");
+
+test("docs, tests, CI and templates never need a version bump", () => {
+  const files = ["README.md", "PLAYBOOK.md", "test/guards.test.js", ".github/workflows/plugin-version.yml", "templates/skill-template/SKILL.md", "scripts/check-version-bump.js", "package.json"];
+  assert.deepStrictEqual(needsBump(files), []);
+});
+
+test("skills, hooks, libs and the installer need a version bump", () => {
+  const files = ["skills/ponytail/SKILL.md", "agent-hooks/guard.js", "hooks/pre-commit", "lib/config.js", "install.js", "AGENTS.md", "config.example.json"];
+  assert.deepStrictEqual(needsBump(files), files);
 });
 ~~~~
 
