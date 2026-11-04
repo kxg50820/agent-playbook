@@ -100,7 +100,7 @@ cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
 
 | Skill | When you reach for it | What it does |
 |---|---|---|
-| `agent-playbook` | Any task, in a project using this playbook | The umbrella skill: the standing rules, plus routing to the right skill below — with compact fallbacks if the others aren't installed. |
+| `playbook` | Any task, in a project using this playbook | The umbrella skill of the agent-playbook plugin: the standing rules, plus routing to the right skill below — with compact fallbacks if the others aren't installed. |
 | `split-commit-pr` | A branch is done and messy | Splits it into clean, logical commits and drafts the PR. **Jira ticket first:** the ticket goes in the PR description next to the Summary — and if there is no ticket in your message or the branch name, it asks before committing. Never invents one. |
 | `change-ticket-release` | A change needs a ticket or a release | Writes the change ticket and release notes; its script diffs JSON semantically, so key-order noise disappears. |
 | `ponytail` | Everyday coding | The smallest complete change: a YAGNI ladder (need it? → already here? → stdlib/platform? → installed dependency? → one line? → minimum that works), with `lite` / `full` / `ultra` levels. Never cuts validation, data-loss handling, security or accessibility. |
@@ -110,7 +110,7 @@ cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
 | `ponytail-gain` | Someone asks "is this worth it?" | Shows Ponytail's published benchmark scoreboard. Upstream figures, not a measurement of your repo. |
 | `ponytail-help` | You forgot a command | One-card reference for the levels and skills above. |
 
-New skills start from `skills/_template/`, and `skills/README.md` holds the house rules for adding one: read the source in full first, and record where it came from and when.
+New skills start from `templates/skill-template/`, and `skills/README.md` holds the house rules for adding one: read the source in full first, and record where it came from and when.
 
 The Ponytail skills are imported from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) under MIT, with attribution in each file. This repo's own `AGENTS.md` wins on any conflict.
 
