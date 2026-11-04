@@ -82,7 +82,7 @@ const fileCount = git(["diff", "--name-only", baseRef + "...HEAD"]).split("\n").
 const short = (f) => (f.length > 70 ? "…" + f.slice(-69) : f);
 const cell = (s) => s.replace(/\|/g, "\\|");
 const summaryLine = ticket ? "Jira: " + ticket : "Jira ticket required — ask the user for the ticket before committing; none was given and none was found in the branch name.";
-const lines = ["## Summary", summaryLine, summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|" , ""];
+const lines = ["## Summary", summaryLine, summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|"];
 for (const c of commits) {
   lines.push(
     "| `" + c.sha + "` | " + cell(c.subject) + " | " + c.files.map((f) => "`" + cell(short(f)) + "`").join("<br>") + " |"

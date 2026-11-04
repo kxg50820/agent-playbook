@@ -95,3 +95,23 @@ test("pr-draft does not mistake dates or standards for Jira tickets", () => {
     assert.strictEqual(!/WARNING: No Jira ticket/.test(r.stdout + r.stderr), expected, branch + "\n" + r.stdout + r.stderr);
   }
 });
+
+test("pr-draft commits table has no blank line between header and rows", () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "pr-"));
+  const run = (...a) => spawnSync("git", a, { cwd: repo, encoding: "utf8" });
+  run("init", "-q", "-b", "main");
+  run("config", "user.email", "t@t.t");
+  run("config", "user.name", "t");
+  fs.writeFileSync(path.join(repo, "a"), "1");
+  run("add", "-A");
+  run("commit", "-qm", "base");
+  run("update-ref", "refs/remotes/origin/main", "HEAD");
+  run("checkout", "-q", "-b", "ABC-1-table");
+  fs.writeFileSync(path.join(repo, "b"), "2");
+  run("add", "-A");
+  run("commit", "-qm", "change");
+  const script = path.join(ROOT, "skills", "split-commit-pr", "scripts", "pr-draft.js");
+  const r = spawnSync("node", [script, "--title", "t", "--summary", "s"], { cwd: repo, encoding: "utf8" });
+  const bodyFile = r.stdout.match(/BODY FILE: (.+?)\s{2}\(/)[1];
+  assert.match(fs.readFileSync(bodyFile, "utf8"), /\|---\|---\|---\|\n\| `/);
+});
