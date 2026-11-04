@@ -34,9 +34,8 @@ This single file contains the catalogue, the folder structure and the full sourc
 ### Skills (`skills/`)
 | Skill | Use when | Helper script |
 |---|---|---|
-| `agent-playbook` | Any task in a project using this playbook; routes work to the relevant skill | — |
+| `playbook` | Any task in a project using this playbook; routes work to the relevant skill | — |
 | `split-commit-pr` | Create a branch, split work into logical commits, push (never force), open ONE PR whose title/body cover the whole branch; ask for the Jira ticket before committing if missing | `scripts/pr-draft.js` — builds the PR body from all commits, prints `gh` commands and a prefilled compare URL |
-| `_template` | Starting point for a new skill (not installed) | — |
 | `change-ticket-release` | Promote validated changes (e.g. stage → prod) under a change ticket: ask ticket first, branch named after it, parity table, copy only approved items | `scripts/json-diff.js` — semantic JSON diff (ignores key order/BOM, matches array items by id) |
 | `ponytail` | Coding tasks where the smallest complete change is preferred | — |
 | `ponytail-review` | Review a change for correctness, safety, load, tests, speed and lean code | — |
@@ -44,6 +43,11 @@ This single file contains the catalogue, the folder structure and the full sourc
 | `ponytail-debt` | List deliberate `shortcut:` comments in a debt ledger | — |
 | `ponytail-gain` | Display Ponytail's published benchmark results | — |
 | `ponytail-help` | Show a quick reference for Ponytail levels and skills | — |
+
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
@@ -99,13 +103,11 @@ agent-playbook/
 │   ├── config.js
 │   └── git.js
 ├── skills/   # SKILL.md skills (open format)
-│   ├── _template/   # starting point for a new skill
-│   │   └── SKILL.md
-│   ├── agent-playbook/
-│   │   └── SKILL.md
 │   ├── change-ticket-release/
 │   │   ├── scripts/
 │   │   │   └── json-diff.js
+│   │   └── SKILL.md
+│   ├── playbook/
 │   │   └── SKILL.md
 │   ├── ponytail/
 │   │   └── SKILL.md
@@ -124,6 +126,9 @@ agent-playbook/
 │   │   │   └── pr-draft.js
 │   │   └── SKILL.md
 │   └── README.md   # install + usage
+├── templates/   # starting points (outside skills/ so the plugin loader skips them)
+│   └── skill-template/
+│       └── SKILL.md
 ├── .gitignore
 ├── .muserules   # Cursor entry point -> AGENTS.md
 ├── AGENTS.md   # personal rules for every agent
@@ -415,7 +420,7 @@ cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
 
 | Skill | When you reach for it | What it does |
 |---|---|---|
-| `agent-playbook` | Any task, in a project using this playbook | The umbrella skill: the standing rules, plus routing to the right skill below — with compact fallbacks if the others aren't installed. |
+| `playbook` | Any task, in a project using this playbook | The umbrella skill of the agent-playbook plugin: the standing rules, plus routing to the right skill below — with compact fallbacks if the others aren't installed. |
 | `split-commit-pr` | A branch is done and messy | Splits it into clean, logical commits and drafts the PR. **Jira ticket first:** the ticket goes in the PR description next to the Summary — and if there is no ticket in your message or the branch name, it asks before committing. Never invents one. |
 | `change-ticket-release` | A change needs a ticket or a release | Writes the change ticket and release notes; its script diffs JSON semantically, so key-order noise disappears. |
 | `ponytail` | Everyday coding | The smallest complete change: a YAGNI ladder (need it? → already here? → stdlib/platform? → installed dependency? → one line? → minimum that works), with `lite` / `full` / `ultra` levels. Never cuts validation, data-loss handling, security or accessibility. |
@@ -425,7 +430,7 @@ cp hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
 | `ponytail-gain` | Someone asks "is this worth it?" | Shows Ponytail's published benchmark scoreboard. Upstream figures, not a measurement of your repo. |
 | `ponytail-help` | You forgot a command | One-card reference for the levels and skills above. |
 
-New skills start from `skills/_template/`, and `skills/README.md` holds the house rules for adding one: read the source in full first, and record where it came from and when.
+New skills start from `templates/skill-template/`, and `skills/README.md` holds the house rules for adding one: read the source in full first, and record where it came from and when.
 
 The Ponytail skills are imported from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) under MIT, with attribution in each file. This repo's own `AGENTS.md` wins on any conflict.
 
@@ -747,15 +752,6 @@ exec node "$(dirname "$0")/run-hook.js" pre-commit "$@"
 exec node "$(dirname "$0")/run-hook.js" pre-merge-commit "$@"
 ~~~~
 
-### `git-hooks/prepare-commit-msg`
-
-<!-- file: git-hooks/prepare-commit-msg -->
-~~~~bash
-#!/bin/sh
-# Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/prepare-commit-msg).
-exec node "$(dirname "$0")/run-hook.js" prepare-commit-msg "$@"
-~~~~
-
 ### `git-hooks/pre-push`
 
 <!-- file: git-hooks/pre-push -->
@@ -772,6 +768,15 @@ exec node "$(dirname "$0")/run-hook.js" pre-push "$@"
 #!/bin/sh
 # Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/pre-rebase).
 exec node "$(dirname "$0")/run-hook.js" pre-rebase "$@"
+~~~~
+
+### `git-hooks/prepare-commit-msg`
+
+<!-- file: git-hooks/prepare-commit-msg -->
+~~~~bash
+#!/bin/sh
+# Generated stub: dispatches to run-hook.js (playbook guard + the repo's own .git/hooks/prepare-commit-msg).
+exec node "$(dirname "$0")/run-hook.js" prepare-commit-msg "$@"
 ~~~~
 
 ### `git-hooks/run-hook.js`
@@ -1072,29 +1077,111 @@ function remoteInfo(remote, cwd) {
 module.exports = { git, currentBranch, remoteInfo };
 ~~~~
 
-### `skills/_template/SKILL.md`
+### `skills/README.md`
 
-<!-- file: skills/_template/SKILL.md -->
+<!-- file: skills/README.md -->
+~~~~markdown
+# Skills
+
+One folder per skill, each with a `SKILL.md` (see `../templates/skill-template/`).
+
+Rules for adding a skill here:
+1. Read its full SKILL.md/source before adding — no blind installs.
+2. Note where it came from (repo URL + date) at the top of the skill.
+3. Keep it office-safe: a prompt/copy-paste version first, install second.
+4. Remove skills you no longer use — a short playbook gets followed.
+~~~~
+
+### `skills/change-ticket-release/SKILL.md`
+
+<!-- file: skills/change-ticket-release/SKILL.md -->
 ~~~~markdown
 ---
-name: my-skill-name
-description: One line — what this skill does and when an agent should use it.
+name: change-ticket-release
+description: Promote already-validated changes from a lower environment (dev/stage) to a higher one (prod) under a change ticket. Asks for the ticket first, works on a branch named exactly after it, builds a parity table, copies only approved items, and opens one multi-commit PR without force-pushing. Use for "sync stage to prod", "promote these changes to prod", "release under change ticket X", "check stage/prod parity".
 ---
 
-# My Skill
+# Change-ticket release (lower env → higher env)
 
-## When to use
-Describe the trigger clearly, so an agent picks this up at the right moment.
+Production is customer-facing. Use this skill only when the user explicitly asks for a higher-environment change.
 
-## Steps
-1. ...
-2. ...
-3. Verify: ...
+## Before coding: 4 rules
 
-## Guardrails
-- Read this file fully before running any install/command in it.
-- No company code or data to external tools.
-- Show the result, don't just claim success.
+1. **Think first.** State the assumptions: ticket, environments, files/keys, and which changes are in scope. If unsure, ask. Never guess the ticket or the scope.
+2. **Simplicity.** Copy only the approved items, with the minimum edit.
+3. **Surgical.** Touch only those target files and keys. Never touch CI- or bot-managed values or unrelated differences.
+4. **Goal-driven.** Define the check before editing, e.g. "the diff between source and target shows only the *Intentionally different* and *Pending* rows, and the tests pass". Edit until it passes.
+
+## 0. Ask for the change ticket (always first)
+
+- Ask: "What is the change ticket number for this release?" If the user already typed one, confirm it.
+- Never infer it from the current branch, other branches, history or earlier chats.
+- Validate it against the format the user or project uses. If the user has none, stop. A read-only parity check (step 2) is still allowed.
+
+## 1. Gather inputs (ask if missing)
+
+| Input | Notes |
+|---|---|
+| Ticket | Exact branch name; goes into every commit and the PR title |
+| Source → target env | e.g. stage → prod |
+| Files / config keys | Only the ones the user names |
+| Source of truth | Only what is **already merged to the default branch and validated** in the source env |
+
+If the source change isn't merged yet, stop: ship it first (`split-commit-pr`), then come back.
+
+## 2. Branch
+
+```bash
+git fetch origin
+git checkout <default> && git pull --ff-only origin <default>
+git log --oneline -5                       # let the user confirm the source change is in
+git branch -a --list '<TICKET>' '*/<TICKET>'
+git checkout -b <TICKET>                   # exact name, no suffix
+```
+- **One ticket = one branch = one PR.** Never reuse another ticket's branch, a feature branch or the default branch.
+- If the branch already exists, ask: continue on it (merge `origin/<default>` in) or stop. Never delete, recreate or force-push it.
+- Uncommitted work: list it and ask before stashing. Never discard it.
+
+## 3. Diff source vs target
+
+JSON files (key order and BOM ignored; array items matched by `id`/`key`/`name`/`field`, configurable):
+```bash
+node <this-skill-dir>/scripts/json-diff.js <source.json> <target.json> [--keys id,key,name] [--path config]
+```
+Output: `+` only in source (candidate to copy), `-` only in target, `~` changed (`target -> source`). Exit code 0 = identical, 1 = differences.
+
+Other formats (YAML, .env, properties): compare entry by entry for the same keys; copy values **verbatim**, never re-serialise.
+
+## 4. Parity table — get approval before editing
+
+| File / key | Change (source → target) | Action |
+|---|---|---|
+| `<file>` | +3 items | **Copy** |
+| `<file>` `<key>` | new value | **Copy** |
+| `<bot-managed value>` | differs | **Skip (CI-managed)** |
+
+Classify every difference:
+- **Copy** — requested and validated in the source env.
+- **Intentionally different** — env-specific URLs/IDs/labels, or items the user deliberately holds back.
+- **Pending** — in source but not requested. List it, don't copy it.
+
+## 5. Apply
+
+- Targeted edits only. Never overwrite the whole target file with the source file.
+- Keep each file's indentation, quoting style, encoding (BOM) and line endings, so the diff shows only the intended change.
+- Re-run step 3: only *Intentionally different* and *Pending* rows may remain.
+- Run the relevant tests and linters.
+
+## 6. Commit + PR
+
+Follow `split-commit-pr`: one commit per file × key/feature, all on `<TICKET>`, one PR, never force-push, ask before committing.
+
+- Commit/PR title pattern: `[<TICKET>] <target env>: <summary of everything promoted>`.
+- PR body (`--extra-file`): final parity table, where/when it was validated in the source env, rollback (revert this PR; list the previous values), out-of-scope items.
+
+## 7. After merge
+
+Tell the user (don't do it yourself): watch the deployment pipeline for the ticket, never deploy manually, and spot-check the changed features in the target env.
 ~~~~
 
 ### `skills/change-ticket-release/scripts/json-diff.js`
@@ -1201,506 +1288,6 @@ print("Only in target", "-", out.del);
 print("Changed", "~", out.chg);
 
 process.exit(out.add.length + out.del.length + out.chg.length ? 1 : 0);
-~~~~
-
-### `skills/change-ticket-release/SKILL.md`
-
-<!-- file: skills/change-ticket-release/SKILL.md -->
-~~~~markdown
----
-name: change-ticket-release
-description: Promote already-validated changes from a lower environment (dev/stage) to a higher one (prod) under a change ticket. Asks for the ticket first, works on a branch named exactly after it, builds a parity table, copies only approved items, and opens one multi-commit PR without force-pushing. Use for "sync stage to prod", "promote these changes to prod", "release under change ticket X", "check stage/prod parity".
----
-
-# Change-ticket release (lower env → higher env)
-
-Production is customer-facing. Use this skill only when the user explicitly asks for a higher-environment change.
-
-## Before coding: 4 rules
-
-1. **Think first.** State the assumptions: ticket, environments, files/keys, and which changes are in scope. If unsure, ask. Never guess the ticket or the scope.
-2. **Simplicity.** Copy only the approved items, with the minimum edit.
-3. **Surgical.** Touch only those target files and keys. Never touch CI- or bot-managed values or unrelated differences.
-4. **Goal-driven.** Define the check before editing, e.g. "the diff between source and target shows only the *Intentionally different* and *Pending* rows, and the tests pass". Edit until it passes.
-
-## 0. Ask for the change ticket (always first)
-
-- Ask: "What is the change ticket number for this release?" If the user already typed one, confirm it.
-- Never infer it from the current branch, other branches, history or earlier chats.
-- Validate it against the format the user or project uses. If the user has none, stop. A read-only parity check (step 2) is still allowed.
-
-## 1. Gather inputs (ask if missing)
-
-| Input | Notes |
-|---|---|
-| Ticket | Exact branch name; goes into every commit and the PR title |
-| Source → target env | e.g. stage → prod |
-| Files / config keys | Only the ones the user names |
-| Source of truth | Only what is **already merged to the default branch and validated** in the source env |
-
-If the source change isn't merged yet, stop: ship it first (`split-commit-pr`), then come back.
-
-## 2. Branch
-
-```bash
-git fetch origin
-git checkout <default> && git pull --ff-only origin <default>
-git log --oneline -5                       # let the user confirm the source change is in
-git branch -a --list '<TICKET>' '*/<TICKET>'
-git checkout -b <TICKET>                   # exact name, no suffix
-```
-- **One ticket = one branch = one PR.** Never reuse another ticket's branch, a feature branch or the default branch.
-- If the branch already exists, ask: continue on it (merge `origin/<default>` in) or stop. Never delete, recreate or force-push it.
-- Uncommitted work: list it and ask before stashing. Never discard it.
-
-## 3. Diff source vs target
-
-JSON files (key order and BOM ignored; array items matched by `id`/`key`/`name`/`field`, configurable):
-```bash
-node <this-skill-dir>/scripts/json-diff.js <source.json> <target.json> [--keys id,key,name] [--path config]
-```
-Output: `+` only in source (candidate to copy), `-` only in target, `~` changed (`target -> source`). Exit code 0 = identical, 1 = differences.
-
-Other formats (YAML, .env, properties): compare entry by entry for the same keys; copy values **verbatim**, never re-serialise.
-
-## 4. Parity table — get approval before editing
-
-| File / key | Change (source → target) | Action |
-|---|---|---|
-| `<file>` | +3 items | **Copy** |
-| `<file>` `<key>` | new value | **Copy** |
-| `<bot-managed value>` | differs | **Skip (CI-managed)** |
-
-Classify every difference:
-- **Copy** — requested and validated in the source env.
-- **Intentionally different** — env-specific URLs/IDs/labels, or items the user deliberately holds back.
-- **Pending** — in source but not requested. List it, don't copy it.
-
-## 5. Apply
-
-- Targeted edits only. Never overwrite the whole target file with the source file.
-- Keep each file's indentation, quoting style, encoding (BOM) and line endings, so the diff shows only the intended change.
-- Re-run step 3: only *Intentionally different* and *Pending* rows may remain.
-- Run the relevant tests and linters.
-
-## 6. Commit + PR
-
-Follow `split-commit-pr`: one commit per file × key/feature, all on `<TICKET>`, one PR, never force-push, ask before committing.
-
-- Commit/PR title pattern: `[<TICKET>] <target env>: <summary of everything promoted>`.
-- PR body (`--extra-file`): final parity table, where/when it was validated in the source env, rollback (revert this PR; list the previous values), out-of-scope items.
-
-## 7. After merge
-
-Tell the user (don't do it yourself): watch the deployment pipeline for the ticket, never deploy manually, and spot-check the changed features in the target env.
-~~~~
-
-### `skills/ponytail/SKILL.md`
-
-<!-- file: skills/ponytail/SKILL.md -->
-~~~~markdown
----
-name: ponytail
-description: >
-  Lazy senior dev mode: the smallest change that fully solves the task, and a
-  reply a busy human understands in one read. Use on any coding task (writing,
-  fixing, refactoring, reviewing, choosing dependencies) and when the user says
-  "ponytail", "be lazy", "simplest solution", "yagni", or complains about
-  over-engineering or bloat. Levels: lite, full (default), ultra.
-argument-hint: "[lite|full|ultra|off]"
-license: MIT
----
-
-> Source: https://github.com/DietrichGebert/ponytail/blob/main/skills/ponytail/SKILL.md
-> Retrieved 2026-11-03. MIT License — © Dietrich Gebert and contributors.
-> Imported into agent-playbook as-is; local rules in this repo's AGENTS.md still win on any conflict.
-
-# Ponytail
-
-You are a lazy senior developer. The best code is the code never written. You solve the whole problem with the least new code. End your reply with one or two lines: what you skipped or did not check, and any risk the user must know.
-
-Active for the whole session until the user says "stop ponytail" or "normal mode". Switch level: `/ponytail lite|full|ultra`.
-
-## Before you write
-
-Read the task and the code it touches. List every place your change must reach: callers, tests, fixtures, config, exports. Check what your change could break for users: data it would destroy or expose, callers that stop working. That is scope. Extra features are not.
-
-## The smallest complete change
-
-Take the first option that fully works:
-
-1. Does it need to exist? Skip features, options and flexibility nobody asked for, and name them in one line. A vague request ("build me X") gets the smallest version that does the core job.
-2. Already in this codebase (a helper, component, service, pattern)? Use it the way the surrounding code does.
-3. Standard library or a platform feature? Use it, unless the project has its own. A house component beats a native widget.
-4. An installed dependency? Use it. Never add a dependency for a few lines.
-5. Can it be one line a reader gets at a glance? One line.
-6. Otherwise: the minimum code that works.
-
-- Be lazy about the solution, never about the change itself: finish every part the task needs, including the callers, tests and fixtures your change breaks.
-- No abstraction, wrapper, type conversion, option, config, boilerplate or "for later" code nobody asked for. Keep values in the form the platform already gives you. Deletion beats addition. Keep the structure the codebase already has: its layers, interfaces and conventions.
-- The shortest working diff wins, once you know everything it must touch. A one-liner that needs decoding is not short.
-- Comment only the why the code cannot show, in one line.
-- Bug fix: before you edit, grep every caller of the function you touch, then fix the root cause once in the shared code.
-- Code you move or merge keeps its error handling and validation.
-- Between options of equal size, take the one that is correct on edge cases.
-- Lazy code without its check is unfinished: new non-trivial logic (a branch, a loop, a parser, money or security, or a whole new script or app) leaves one small test or an assert-based self-check. Trivial changes need none.
-- A shortcut with a known limit gets a code comment in this form: `shortcut: <the limit>, <when to upgrade>`.
-
-Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs, anything the user asked for.
-
-## Levels
-
-| Level | Behavior |
-|-------|----------|
-| **lite** | Build what was asked. Name the smaller option in one line and let the user pick. |
-| **full** | The rules above. Default. |
-| **ultra** | Also question the request: before building, push back on any part the need does not justify. |
-~~~~
-
-### `skills/README.md`
-
-<!-- file: skills/README.md -->
-~~~~markdown
-# Skills
-
-One folder per skill, each with a `SKILL.md` (see `_template/`).
-
-Rules for adding a skill here:
-1. Read its full SKILL.md/source before adding — no blind installs.
-2. Note where it came from (repo URL + date) at the top of the skill.
-3. Keep it office-safe: a prompt/copy-paste version first, install second.
-4. Remove skills you no longer use — a short playbook gets followed.
-~~~~
-
-### `skills/split-commit-pr/scripts/pr-draft.js`
-
-<!-- file: skills/split-commit-pr/scripts/pr-draft.js -->
-~~~~js
-#!/usr/bin/env node
-/*
- * Build a PR title + body from ALL commits on the current branch.
- * Self-contained (no dependencies), works on macOS, Linux and Windows.
- * Usage (from the repo root):
- *   node pr-draft.js --title "<title>" --summary "<1-3 lines>"
- *        [--refs "<tickets>"] [--extra-file notes.md] [--footer "<line>"] [--base main] [--remote origin]
- * Ticket: --refs takes precedence; otherwise the ticket is extracted
- * from the current branch name (e.g. ABC-123). If neither has one,
- * the body notes that a ticket is required and must be asked for;
- * a ticket is never invented.
- */
-"use strict";
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const { spawnSync } = require("child_process");
-function arg(name, def) {
-  const i = process.argv.indexOf("--" + name);
-  return i > -1 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def;
-}
-function git(args, optional) {
-  const r = spawnSync("git", args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, windowsHide: true });
-  if (r.error || r.status !== 0) {
-    if (optional) return "";
-    console.error("git " + args.join(" ") + " failed: " + (r.stderr || r.error));
-    process.exit(1);
-  }
-  return r.stdout.trim();
-}
-function defaultBranch(remote) {
-  const head = git(["symbolic-ref", "--short", "refs/remotes/" + remote + "/HEAD"], true);
-  return head ? head.replace(remote + "/", "") : "main";
-}
-function remoteInfo(remote) {
-  const url = git(["remote", "get-url", remote], true);
-  const m = url.match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](?:\d+\/)?(.+?)(?:\.git)?\/?$/i);
-  return m ? { host: m[1], slug: m[2], web: "https://" + m[1] + "/" + m[2] } : null;
-}
-const remote = arg("remote", "origin");
-const base = arg("base", defaultBranch(remote));
-const title = arg("title", "");
-const summary = arg("summary", "");
-const refs = arg("refs", "");
-const extraFile = arg("extra-file", "");
-const footer = arg("footer", "");
-if (!title || !summary) {
-  console.error('Required: --title "<title>" --summary "<summary of the WHOLE branch>"');
-  process.exit(1);
-}
-const branch = git(["branch", "--show-current"]);
-const ticketFromRefs = (refs.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
-const ticketFromBranch = (branch.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
-const ticket = ticketFromRefs || ticketFromBranch;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const baseRef = remote + "/" + base;
-const commits = git(["log", "--reverse", "--format=%h%x09%s", baseRef + "..HEAD"])
-  .split("\n")
-  .filter(Boolean)
-  .map((line) => {
-    const [sha, subject] = line.split("\t");
-    const files = git(["show", "--name-only", "--format=", sha]).split("\n").filter(Boolean);
-    return { sha, subject, files };
-  });
-if (!commits.length) {
-  console.error("No commits on " + branch + " ahead of " + baseRef + " (run git fetch?)");
-  process.exit(1);
-}
-const stat = git(["diff", "--shortstat", baseRef + "...HEAD"]);
-const fileCount = git(["diff", "--name-only", baseRef + "...HEAD"]).split("\n").filter(Boolean).length;
-const short = (f) => (f.length > 70 ? "…" + f.slice(-69) : f);
-const cell = (s) => s.replace(/\|/g, "\\|");
-const summaryLine = ticket ? "Jira: " + ticket : "Jira ticket required — ask the user for the ticket before committing; none was given and none was found in the branch name.";
-const lines = ["## Summary", summaryLine, summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|" , ""];
-for (const c of commits) {
-  lines.push(
-    "| `" + c.sha + "` | " + cell(c.subject) + " | " + c.files.map((f) => "`" + cell(short(f)) + "`").join("<br>") + " |"
-  );
-}
-lines.push("", "**Files changed (" + fileCount + "):** " + stat, "");
-if (extraFile) lines.push(fs.readFileSync(extraFile, "utf8").trim(), "");
-lines.push("## References", refs || ticket || "_None_", "");
-if (footer) lines.push(footer);
-const body = lines.join("\n").trim() + "\n";
-const out = path.join(os.tmpdir(), "pr-" + branch.replace(/[^\w.-]+/g, "_") + ".md");
-fs.writeFileSync(out, body);
-const q = (s) => '"' + s.replace(/"/g, '\\"') + '"';
-const info = remoteInfo(remote);
-console.log("TITLE: " + title);
-console.log("BODY FILE: " + out + "  (" + commits.length + " commits, " + fileCount + " files)");
-if (!ticket) {
-  console.log("\nWARNING: No Jira ticket found — ask the user for the ticket before committing; none was invented.");
-}
-if (info) {
-  const ghBase = "gh pr %s --repo " + info.host + "/" + info.slug;
-  console.log("\n# gh (authenticated):");
-  console.log("  new PR:      " + ghBase.replace("%s", "create") + " --base " + base + " --head " + q(branch) + " --title " + q(title) + " --body-file " + q(out));
-  console.log("  existing PR: " + ghBase.replace("%s", "edit") + " " + q(branch) + " --title " + q(title) + " --body-file " + q(out));
-  const compare = info.web + "/compare/" + base + "..." + encodeURIComponent(branch) + "?expand=1&title=" + encodeURIComponent(title);
-  const full = compare + "&body=" + encodeURIComponent(body);
-  console.log("\n# Browser (title and body prefilled):");
-  if (full.length > 7500) {
-    console.log("  Body too long for a URL; title-only link below, paste the body from " + out);
-    console.log("  " + compare);
-  } else {
-    console.log("  " + full);
-  }
-} else {
-  console.log("\nNo parsable '" + remote + "' remote; paste the body from " + out);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-~~~~
-
-### `skills/split-commit-pr/SKILL.md`
-
-<!-- file: skills/split-commit-pr/SKILL.md -->
-~~~~markdown
----
-name: split-commit-pr
-description: Sync with the default branch, create a feature branch, split the work into multiple logical commits, push without ever force-pushing, and open ONE pull request whose title and description summarise the whole branch. Use for "create a branch", "commit and open a PR", "split this into multiple commits", "write the PR description", "update the PR description".
----
-
-# Split commits → one PR
-
-## Standing rules
-
-1. **Never force-push.** No `--force`, `-f`, `--force-with-lease` or `+refspec`, on any branch.
-2. **Never rewrite pushed history.** No amend, rebase, reset + re-push or squash on a pushed branch. Fix forward with a new commit.
-3. **Multiple commits, one PR.** Split the work into logical commits and open a single PR. One commit per logical step — never one giant commit, never one PR per commit unless the user explicitly asks for separate PRs.
-4. **PR body is the whole branch.** Title + description cover the whole branch, not just the latest commit.
-5. **Ask before committing.** Do not commit without asking the user first — even if the branch is ready.
-6. The diff must follow AGENTS.md. Keep it small, typed, tested and understandable.
-
-## 0. Jira ticket first
-
-Jira ticket first. If you didn't give one and the branch name doesn't have one, the agent asks before committing. The ticket goes in the PR description next to the change Summary.
-
-- Before any commit, look for a Jira ticket (a key like ABC-123) in this order: first, what the user gave in the task/conversation; then the current branch name.
-- If neither has one, ask the user for the ticket before committing — do not commit without one and do not invent one.
-- When the PR is created, put the ticket in the PR description next to the Summary of changes (see §4).
-
-## 1. Sync and branch
-
-1. `git switch main` (or the default branch for this repo) and run `git pull --ff-only`.
-2. Create the branch from the synced main with a ticket-led, lowercase slug, for example `feature/JIRA-123-add-login` (use the actual ticket key).
-3. If the user gave a different name, use that name exactly.
-4. Run `git status` to confirm the tree is clean.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## 2. Work and check
-
-1. Implement the change with small, reviewable diffs.
-2. Run the relevant tests/builds. If any fail, fix before continuing.
-3. Show what changed, what was verified, and what is still open — be honest about failures.
-
-## 3. Split commits
-
-1. Ask the user: "I want to split this work into these commits. Is that right?"
-2. Show the proposed commit list before committing.
-3. If the user agrees, commit in order, one logical step per commit, with a conventional message:
-   - `feat: add login validation`
-   - `fix: correct error message`
-   - `docs: update login docs`
-4. Each commit message should be short but complete.
-
-## 4. PR body
-
-Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The script uses only files inside the skill folder.
-
-1. Make sure the branch is pushed: `git push -u origin <branch>` — never force-push.
-2. Run `node scripts/pr-draft.js` from the repo root.
-3. The body uses this structure:
-   - Summary: 1–3 lines — why, scope, and what is intentionally out of scope, with the Jira ticket next to it (e.g. `Jira: ABC-123`).
-   - Changes: a list of the commits in this branch and what each one does.
-   - Testing: which tests/builds were run and the result.
-   - Follow-up: anything left to do, and the next step for the reviewer.
-4. Generate the body with `node scripts/pr-draft.js`, inspect it, then paste it into the PR description — do not paste anything the script did not generate. The script puts the Jira ticket next to the Summary; if it cannot find a ticket, it says a ticket is required instead of inventing one.
-5. If the user gives you a PR title, use it. Otherwise, use the ticket key plus a short summary of the whole branch, e.g. `ABC-123 Add login validation`.
-
-## 5. Open the PR
-
-1. If `gh` is available, run the `gh` command exactly as `scripts/pr-draft.js` prints it, then check that the PR was created.
-2. If `gh` is not available, print the exact PR creation URL the script prints and the full PR title and body, so the user can paste them.
-3. Do not edit the PR body by hand unless the user asks for a change. If they do, make the change, then regenerate the body with the script.
-4. Never open a PR per commit unless the user explicitly asks for separate PRs.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ~~~~
 
 ### `skills/ponytail-audit/SKILL.md`
@@ -2050,6 +1637,424 @@ Nothing found: `What this change does:`, then `Looks good. Ship.` and one line o
 Lists findings, changes no code.
 ~~~~
 
+### `skills/ponytail/SKILL.md`
+
+<!-- file: skills/ponytail/SKILL.md -->
+~~~~markdown
+---
+name: ponytail
+description: >
+  Lazy senior dev mode: the smallest change that fully solves the task, and a
+  reply a busy human understands in one read. Use on any coding task (writing,
+  fixing, refactoring, reviewing, choosing dependencies) and when the user says
+  "ponytail", "be lazy", "simplest solution", "yagni", or complains about
+  over-engineering or bloat. Levels: lite, full (default), ultra.
+argument-hint: "[lite|full|ultra|off]"
+license: MIT
+---
+
+> Source: https://github.com/DietrichGebert/ponytail/blob/main/skills/ponytail/SKILL.md
+> Retrieved 2026-11-03. MIT License — © Dietrich Gebert and contributors.
+> Imported into agent-playbook as-is; local rules in this repo's AGENTS.md still win on any conflict.
+
+# Ponytail
+
+You are a lazy senior developer. The best code is the code never written. You solve the whole problem with the least new code. End your reply with one or two lines: what you skipped or did not check, and any risk the user must know.
+
+Active for the whole session until the user says "stop ponytail" or "normal mode". Switch level: `/ponytail lite|full|ultra`.
+
+## Before you write
+
+Read the task and the code it touches. List every place your change must reach: callers, tests, fixtures, config, exports. Check what your change could break for users: data it would destroy or expose, callers that stop working. That is scope. Extra features are not.
+
+## The smallest complete change
+
+Take the first option that fully works:
+
+1. Does it need to exist? Skip features, options and flexibility nobody asked for, and name them in one line. A vague request ("build me X") gets the smallest version that does the core job.
+2. Already in this codebase (a helper, component, service, pattern)? Use it the way the surrounding code does.
+3. Standard library or a platform feature? Use it, unless the project has its own. A house component beats a native widget.
+4. An installed dependency? Use it. Never add a dependency for a few lines.
+5. Can it be one line a reader gets at a glance? One line.
+6. Otherwise: the minimum code that works.
+
+- Be lazy about the solution, never about the change itself: finish every part the task needs, including the callers, tests and fixtures your change breaks.
+- No abstraction, wrapper, type conversion, option, config, boilerplate or "for later" code nobody asked for. Keep values in the form the platform already gives you. Deletion beats addition. Keep the structure the codebase already has: its layers, interfaces and conventions.
+- The shortest working diff wins, once you know everything it must touch. A one-liner that needs decoding is not short.
+- Comment only the why the code cannot show, in one line.
+- Bug fix: before you edit, grep every caller of the function you touch, then fix the root cause once in the shared code.
+- Code you move or merge keeps its error handling and validation.
+- Between options of equal size, take the one that is correct on edge cases.
+- Lazy code without its check is unfinished: new non-trivial logic (a branch, a loop, a parser, money or security, or a whole new script or app) leaves one small test or an assert-based self-check. Trivial changes need none.
+- A shortcut with a known limit gets a code comment in this form: `shortcut: <the limit>, <when to upgrade>`.
+
+Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs, anything the user asked for.
+
+## Levels
+
+| Level | Behavior |
+|-------|----------|
+| **lite** | Build what was asked. Name the smaller option in one line and let the user pick. |
+| **full** | The rules above. Default. |
+| **ultra** | Also question the request: before building, push back on any part the need does not justify. |
+~~~~
+
+### `skills/split-commit-pr/SKILL.md`
+
+<!-- file: skills/split-commit-pr/SKILL.md -->
+~~~~markdown
+---
+name: split-commit-pr
+description: Sync with the default branch, create a feature branch, split the work into multiple logical commits, push without ever force-pushing, and open ONE pull request whose title and description summarise the whole branch. Use for "create a branch", "commit and open a PR", "split this into multiple commits", "write the PR description", "update the PR description".
+---
+
+# Split commits → one PR
+
+## Standing rules
+
+1. **Never force-push.** No `--force`, `-f`, `--force-with-lease` or `+refspec`, on any branch.
+2. **Never rewrite pushed history.** No amend, rebase, reset + re-push or squash on a pushed branch. Fix forward with a new commit.
+3. **Multiple commits, one PR.** Split the work into logical commits and open a single PR. One commit per logical step — never one giant commit, never one PR per commit unless the user explicitly asks for separate PRs.
+4. **PR body is the whole branch.** Title + description cover the whole branch, not just the latest commit.
+5. **Ask before committing.** Do not commit without asking the user first — even if the branch is ready.
+6. The diff must follow AGENTS.md. Keep it small, typed, tested and understandable.
+
+## 0. Jira ticket first
+
+Jira ticket first. If you didn't give one and the branch name doesn't have one, the agent asks before committing. The ticket goes in the PR description next to the change Summary.
+
+- Before any commit, look for a Jira ticket (a key like ABC-123) in this order: first, what the user gave in the task/conversation; then the current branch name.
+- If neither has one, ask the user for the ticket before committing — do not commit without one and do not invent one.
+- When the PR is created, put the ticket in the PR description next to the Summary of changes (see §4).
+
+## 1. Sync and branch
+
+1. `git switch main` (or the default branch for this repo) and run `git pull --ff-only`.
+2. Create the branch from the synced main with a ticket-led, lowercase slug, for example `feature/JIRA-123-add-login` (use the actual ticket key).
+3. If the user gave a different name, use that name exactly.
+4. Run `git status` to confirm the tree is clean.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## 2. Work and check
+
+1. Implement the change with small, reviewable diffs.
+2. Run the relevant tests/builds. If any fail, fix before continuing.
+3. Show what changed, what was verified, and what is still open — be honest about failures.
+
+## 3. Split commits
+
+1. Ask the user: "I want to split this work into these commits. Is that right?"
+2. Show the proposed commit list before committing.
+3. If the user agrees, commit in order, one logical step per commit, with a conventional message:
+   - `feat: add login validation`
+   - `fix: correct error message`
+   - `docs: update login docs`
+4. Each commit message should be short but complete.
+
+## 4. PR body
+
+Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The script uses only files inside the skill folder.
+
+1. Make sure the branch is pushed: `git push -u origin <branch>` — never force-push.
+2. Run `node scripts/pr-draft.js` from the repo root.
+3. The body uses this structure:
+   - Summary: 1–3 lines — why, scope, and what is intentionally out of scope, with the Jira ticket next to it (e.g. `Jira: ABC-123`).
+   - Changes: a list of the commits in this branch and what each one does.
+   - Testing: which tests/builds were run and the result.
+   - Follow-up: anything left to do, and the next step for the reviewer.
+4. Generate the body with `node scripts/pr-draft.js`, inspect it, then paste it into the PR description — do not paste anything the script did not generate. The script puts the Jira ticket next to the Summary; if it cannot find a ticket, it says a ticket is required instead of inventing one.
+5. If the user gives you a PR title, use it. Otherwise, use the ticket key plus a short summary of the whole branch, e.g. `ABC-123 Add login validation`.
+
+## 5. Open the PR
+
+1. If `gh` is available, run the `gh` command exactly as `scripts/pr-draft.js` prints it, then check that the PR was created.
+2. If `gh` is not available, print the exact PR creation URL the script prints and the full PR title and body, so the user can paste them.
+3. Do not edit the PR body by hand unless the user asks for a change. If they do, make the change, then regenerate the body with the script.
+4. Never open a PR per commit unless the user explicitly asks for separate PRs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+~~~~
+
+### `skills/split-commit-pr/scripts/pr-draft.js`
+
+<!-- file: skills/split-commit-pr/scripts/pr-draft.js -->
+~~~~js
+#!/usr/bin/env node
+/*
+ * Build a PR title + body from ALL commits on the current branch.
+ * Self-contained (no dependencies), works on macOS, Linux and Windows.
+ * Usage (from the repo root):
+ *   node pr-draft.js --title "<title>" --summary "<1-3 lines>"
+ *        [--refs "<tickets>"] [--extra-file notes.md] [--footer "<line>"] [--base main] [--remote origin]
+ * Ticket: --refs takes precedence; otherwise the ticket is extracted
+ * from the current branch name (e.g. ABC-123). If neither has one,
+ * the body notes that a ticket is required and must be asked for;
+ * a ticket is never invented.
+ */
+"use strict";
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { spawnSync } = require("child_process");
+function arg(name, def) {
+  const i = process.argv.indexOf("--" + name);
+  return i > -1 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def;
+}
+function git(args, optional) {
+  const r = spawnSync("git", args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, windowsHide: true });
+  if (r.error || r.status !== 0) {
+    if (optional) return "";
+    console.error("git " + args.join(" ") + " failed: " + (r.stderr || r.error));
+    process.exit(1);
+  }
+  return r.stdout.trim();
+}
+function defaultBranch(remote) {
+  const head = git(["symbolic-ref", "--short", "refs/remotes/" + remote + "/HEAD"], true);
+  return head ? head.replace(remote + "/", "") : "main";
+}
+function remoteInfo(remote) {
+  const url = git(["remote", "get-url", remote], true);
+  const m = url.match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](?:\d+\/)?(.+?)(?:\.git)?\/?$/i);
+  return m ? { host: m[1], slug: m[2], web: "https://" + m[1] + "/" + m[2] } : null;
+}
+const remote = arg("remote", "origin");
+const base = arg("base", defaultBranch(remote));
+const title = arg("title", "");
+const summary = arg("summary", "");
+const refs = arg("refs", "");
+const extraFile = arg("extra-file", "");
+const footer = arg("footer", "");
+if (!title || !summary) {
+  console.error('Required: --title "<title>" --summary "<summary of the WHOLE branch>"');
+  process.exit(1);
+}
+const branch = git(["branch", "--show-current"]);
+const ticketFromRefs = (refs.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
+const ticketFromBranch = (branch.match(/[A-Z0-9]+-[0-9]+/) || [])[0] || "";
+const ticket = ticketFromRefs || ticketFromBranch;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const baseRef = remote + "/" + base;
+const commits = git(["log", "--reverse", "--format=%h%x09%s", baseRef + "..HEAD"])
+  .split("\n")
+  .filter(Boolean)
+  .map((line) => {
+    const [sha, subject] = line.split("\t");
+    const files = git(["show", "--name-only", "--format=", sha]).split("\n").filter(Boolean);
+    return { sha, subject, files };
+  });
+if (!commits.length) {
+  console.error("No commits on " + branch + " ahead of " + baseRef + " (run git fetch?)");
+  process.exit(1);
+}
+const stat = git(["diff", "--shortstat", baseRef + "...HEAD"]);
+const fileCount = git(["diff", "--name-only", baseRef + "...HEAD"]).split("\n").filter(Boolean).length;
+const short = (f) => (f.length > 70 ? "…" + f.slice(-69) : f);
+const cell = (s) => s.replace(/\|/g, "\\|");
+const summaryLine = ticket ? "Jira: " + ticket : "Jira ticket required — ask the user for the ticket before committing; none was given and none was found in the branch name.";
+const lines = ["## Summary", summaryLine, summary, "", "## Commits", "| Commit | Change | Files |", "|---|---|---|" , ""];
+for (const c of commits) {
+  lines.push(
+    "| `" + c.sha + "` | " + cell(c.subject) + " | " + c.files.map((f) => "`" + cell(short(f)) + "`").join("<br>") + " |"
+  );
+}
+lines.push("", "**Files changed (" + fileCount + "):** " + stat, "");
+if (extraFile) lines.push(fs.readFileSync(extraFile, "utf8").trim(), "");
+lines.push("## References", refs || ticket || "_None_", "");
+if (footer) lines.push(footer);
+const body = lines.join("\n").trim() + "\n";
+const out = path.join(os.tmpdir(), "pr-" + branch.replace(/[^\w.-]+/g, "_") + ".md");
+fs.writeFileSync(out, body);
+const q = (s) => '"' + s.replace(/"/g, '\\"') + '"';
+const info = remoteInfo(remote);
+console.log("TITLE: " + title);
+console.log("BODY FILE: " + out + "  (" + commits.length + " commits, " + fileCount + " files)");
+if (!ticket) {
+  console.log("\nWARNING: No Jira ticket found — ask the user for the ticket before committing; none was invented.");
+}
+if (info) {
+  const ghBase = "gh pr %s --repo " + info.host + "/" + info.slug;
+  console.log("\n# gh (authenticated):");
+  console.log("  new PR:      " + ghBase.replace("%s", "create") + " --base " + base + " --head " + q(branch) + " --title " + q(title) + " --body-file " + q(out));
+  console.log("  existing PR: " + ghBase.replace("%s", "edit") + " " + q(branch) + " --title " + q(title) + " --body-file " + q(out));
+  const compare = info.web + "/compare/" + base + "..." + encodeURIComponent(branch) + "?expand=1&title=" + encodeURIComponent(title);
+  const full = compare + "&body=" + encodeURIComponent(body);
+  console.log("\n# Browser (title and body prefilled):");
+  if (full.length > 7500) {
+    console.log("  Body too long for a URL; title-only link below, paste the body from " + out);
+    console.log("  " + compare);
+  } else {
+    console.log("  " + full);
+  }
+} else {
+  console.log("\nNo parsable '" + remote + "' remote; paste the body from " + out);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+~~~~
+
+### `templates/skill-template/SKILL.md`
+
+<!-- file: templates/skill-template/SKILL.md -->
+~~~~markdown
+---
+name: my-skill-name
+description: One line — what this skill does and when an agent should use it.
+---
+
+# My Skill
+
+## When to use
+Describe the trigger clearly, so an agent picks this up at the right moment.
+
+## Steps
+1. ...
+2. ...
+3. Verify: ...
+
+## Guardrails
+- Read this file fully before running any install/command in it.
+- No company code or data to external tools.
+- Show the result, don't just claim success.
+~~~~
+
 ### `.agents/plugins/marketplace.json`
 
 <!-- file: .agents/plugins/marketplace.json -->
@@ -2061,21 +2066,95 @@ Lists findings, changes no code.
 
 <!-- file: .claude-plugin/marketplace.json -->
 ~~~~json
-{"$schema":"https://anthropic.com/claude-code/marketplace.schema.json","description":"A portable AI coding workflow: rules, skills and git guardrails that follow you across tools, teams and companies.","name":"agent-playbook","owner":{"name":"Kruthik Gandrathi","url":"https://github.com/kxg50820"},"plugins":[{"category":"productivity","description":"Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.","name":"agent-playbook","source":"./"}]}
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "description": "A portable AI coding workflow: rules, skills and git guardrails that follow you across tools, teams and companies.",
+  "name": "agent-playbook",
+  "owner": {
+    "name": "Kruthik Gandrathi",
+    "url": "https://github.com/kxg50820"
+  },
+  "plugins": [
+    {
+      "category": "productivity",
+      "description": "Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.",
+      "name": "agent-playbook",
+      "source": "./",
+      "version": "1.0.1"
+    }
+  ]
+}
 ~~~~
 
 ### `.claude-plugin/plugin.json`
 
 <!-- file: .claude-plugin/plugin.json -->
 ~~~~json
-{"author":{"name":"Kruthik Gandrathi","url":"https://github.com/kxg50820"},"description":"Portable AI coding workflow: standing agent rules, a library of skills for commits, PRs, reviews, audits, debt and releases, plus git safety guard hooks.","homepage":"https://github.com/kxg50820/agent-playbook","hooks":["./hooks/plugin-hooks.json"],"keywords":["skills","code-review","git-hooks","workflow","agents"],"name":"agent-playbook","repository":"https://github.com/kxg50820/agent-playbook","version":"1.0.0"}
+{
+  "author": {
+    "name": "Kruthik Gandrathi",
+    "url": "https://github.com/kxg50820"
+  },
+  "description": "Portable AI coding workflow: standing agent rules, a library of skills for commits, PRs, reviews, audits, debt and releases, plus git safety guard hooks.",
+  "homepage": "https://github.com/kxg50820/agent-playbook",
+  "hooks": [
+    "./hooks/plugin-hooks.json"
+  ],
+  "keywords": [
+    "skills",
+    "code-review",
+    "git-hooks",
+    "workflow",
+    "agents"
+  ],
+  "name": "agent-playbook",
+  "repository": "https://github.com/kxg50820/agent-playbook",
+  "version": "1.0.1"
+}
 ~~~~
 
 ### `.codex-plugin/plugin.json`
 
 <!-- file: .codex-plugin/plugin.json -->
 ~~~~json
-{"author":{"name":"Kruthik Gandrathi","url":"https://github.com/kxg50820"},"description":"Portable AI coding workflow: standing agent rules, a library of skills for commits, PRs, reviews, audits, debt and releases, plus git safety guard hooks.","homepage":"https://github.com/kxg50820/agent-playbook","hooks":"./hooks/plugin-hooks.json","interface":{"brandColor":"#111111","capabilities":["Instructions","Lifecycle hooks"],"category":"Productivity","defaultPrompt":["Use the agent-playbook rules for this task.","Review this diff with ponytail-review.","Split this branch into clean commits and draft the PR."],"developerName":"Kruthik Gandrathi","displayName":"Agent Playbook","longDescription":"Standing AGENTS.md rules, nine skills for everyday engineering work (smallest-change coding, diff and repo reviews, debt tracking, clean commits and PRs, change tickets and releases), and guard hooks that block force-pushes and secret leaks.","shortDescription":"Portable AI coding workflow: rules, skills, guardrails","websiteURL":"https://github.com/kxg50820/agent-playbook"},"keywords":["skills","code-review","git-hooks","workflow","agents"],"name":"agent-playbook","repository":"https://github.com/kxg50820/agent-playbook","skills":"./skills/","version":"1.0.0"}
+{
+  "author": {
+    "name": "Kruthik Gandrathi",
+    "url": "https://github.com/kxg50820"
+  },
+  "description": "Portable AI coding workflow: standing agent rules, a library of skills for commits, PRs, reviews, audits, debt and releases, plus git safety guard hooks.",
+  "homepage": "https://github.com/kxg50820/agent-playbook",
+  "hooks": "./hooks/plugin-hooks.json",
+  "interface": {
+    "brandColor": "#111111",
+    "capabilities": [
+      "Instructions",
+      "Lifecycle hooks"
+    ],
+    "category": "Productivity",
+    "defaultPrompt": [
+      "Use the agent-playbook rules for this task.",
+      "Review this diff with ponytail-review.",
+      "Split this branch into clean commits and draft the PR."
+    ],
+    "developerName": "Kruthik Gandrathi",
+    "displayName": "Agent Playbook",
+    "longDescription": "Standing AGENTS.md rules, nine skills for everyday engineering work (smallest-change coding, diff and repo reviews, debt tracking, clean commits and PRs, change tickets and releases), and guard hooks that block force-pushes and secret leaks.",
+    "shortDescription": "Portable AI coding workflow: rules, skills, guardrails",
+    "websiteURL": "https://github.com/kxg50820/agent-playbook"
+  },
+  "keywords": [
+    "skills",
+    "code-review",
+    "git-hooks",
+    "workflow",
+    "agents"
+  ],
+  "name": "agent-playbook",
+  "repository": "https://github.com/kxg50820/agent-playbook",
+  "skills": "./skills/",
+  "version": "1.0.1"
+}
 ~~~~
 
 ### `hooks/plugin-hooks.json`
@@ -2085,16 +2164,16 @@ Lists findings, changes no code.
 {"hooks":{"PreToolUse":[{"hooks":[{"command":"node \"${CLAUDE_PLUGIN_ROOT}/agent-hooks/guard.js\"","statusMessage":"Checking agent-playbook guardrails...","timeout":15,"type":"command"}],"matcher":"Bash|PowerShell"}]}}
 ~~~~
 
-### `skills/agent-playbook/SKILL.md`
+### `skills/playbook/SKILL.md`
 
-<!-- file: skills/agent-playbook/SKILL.md -->
+<!-- file: skills/playbook/SKILL.md -->
 ~~~~markdown
 ---
-name: agent-playbook
+name: playbook
 description: The standing rules and skill routing for Kruthik Gandrathi's agent-playbook. Use at the start of any coding task in a project that has adopted this playbook: it sets how the agent should work (understand first, smallest complete change, surgical edits, verify before claiming done, git safety, Jira ticket first) and which bundled skill to reach for (ponytail for coding, ponytail-review for diffs, ponytail-audit for whole repos, ponytail-debt for shortcuts, split-commit-pr for commits and PRs, change-ticket-release for releases). Also usable on its own, without the rest of the plugin: the rules and compact checklists below are self-contained.
 ---
 
-# agent-playbook — the umbrella skill
+# playbook — the umbrella skill
 
 This is the front door to the playbook. It carries the standing rules every task follows, and it routes bigger jobs to the specialised skills bundled with it. If those skills are not installed, the compact fallbacks in this file still apply — follow them inline instead of skipping the step.
 
