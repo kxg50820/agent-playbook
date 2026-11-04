@@ -64,6 +64,16 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|
 | `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
+
+### Templates (`templates/`)
+| Template | Use when |
+|---|---|
+| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
+
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
@@ -75,7 +85,7 @@ This single file contains the catalogue, the folder structure and the full sourc
 
 ## 2. Structure
 
-50 files total, including `PLAYBOOK.md`.
+51 files total, including `PLAYBOOK.md`.
 
 ```text
 agent-playbook/
@@ -145,13 +155,16 @@ agent-playbook/
 │   └── skill-template/
 │       └── SKILL.md
 ├── test/   # node:test checks for the guards, pre-commit scan and PR draft
-│   └── guards.test.js
+│   ├── guards.test.js
+│   └── versions.test.js
 ├── .gitignore
 ├── .muserules   # Cursor entry point -> AGENTS.md
 ├── AGENTS.md   # personal rules for every agent
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
+├── package.json   # `npm test` only, no dependencies
+├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── PLAYBOOK.md
@@ -377,6 +390,11 @@ codex plugin add agent-playbook@agent-playbook
 ```
 
 The tool downloads the plugin and registers the skills and the guard hook for you; updates arrive through the tool as well. Nothing is cloned and nothing needs editing.
+
+**Staying up to date:** installed plugins are cached per version. In Claude Code open `/plugin`, go to Marketplaces, pick `agent-playbook` and turn on auto-update; it then fetches new releases at startup. To update by hand: `/plugin marketplace update agent-playbook`.
+
+**Maintainers:** bump `version` in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` in every change users should receive (`npm test` fails if the three differ). Without a bump, installed copies do not update.
+
 ### From a clone — one machine, every tool
 
 ```bash
@@ -2042,6 +2060,30 @@ test("pr-draft commits table has no blank line between header and rows", () => {
 });
 ~~~~
 
+### `test/versions.test.js`
+
+<!-- file: test/versions.test.js -->
+~~~~js
+"use strict";
+// Installed plugins are cached per version. If a change ships without a version bump, users never see it,
+// and if the three manifests disagree, Claude Code and Codex install different releases.
+const test = require("node:test");
+const assert = require("node:assert");
+const fs = require("fs");
+const path = require("path");
+
+const read = (p) => JSON.parse(fs.readFileSync(path.join(__dirname, "..", p), "utf8"));
+
+test("all plugin manifests carry the same version", () => {
+  const versions = {
+    ".claude-plugin/plugin.json": read(".claude-plugin/plugin.json").version,
+    ".claude-plugin/marketplace.json": read(".claude-plugin/marketplace.json").plugins[0].version,
+    ".codex-plugin/plugin.json": read(".codex-plugin/plugin.json").version,
+  };
+  assert.strictEqual(new Set(Object.values(versions)).size, 1, JSON.stringify(versions));
+});
+~~~~
+
 ### `.agents/plugins/marketplace.json`
 
 <!-- file: .agents/plugins/marketplace.json -->
@@ -2067,7 +2109,7 @@ test("pr-draft commits table has no blank line between header and rows", () => {
       "description": "Standing agent rules, nine skills (commits and PRs, diff and repo reviews, debt ledger, releases, Ponytail) and safety guard hooks, installed as one plugin.",
       "name": "agent-playbook",
       "source": "./",
-      "version": "1.0.1"
+      "version": "1.0.2"
     }
   ]
 }
@@ -2096,7 +2138,7 @@ test("pr-draft commits table has no blank line between header and rows", () => {
   ],
   "name": "agent-playbook",
   "repository": "https://github.com/kxg50820/agent-playbook",
-  "version": "1.0.1"
+  "version": "1.0.2"
 }
 ~~~~
 
@@ -2140,7 +2182,7 @@ test("pr-draft commits table has no blank line between header and rows", () => {
   "name": "agent-playbook",
   "repository": "https://github.com/kxg50820/agent-playbook",
   "skills": "./skills/",
-  "version": "1.0.1"
+  "version": "1.0.2"
 }
 ~~~~
 
