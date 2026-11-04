@@ -64,8 +64,7 @@ codex plugin marketplace add kxg50820/agent-playbook
 codex plugin add agent-playbook@agent-playbook
 ```
 
-The tool downloads the plugin and registers the skills and the guard hook for you; updates arrive through the tool as well. Nothing is cloned and nothing needs editing. (While this repo is private, the plugin route needs a GitHub login with access to it; the clone route below installs the same content by hand.)
-
+The tool downloads the plugin and registers the skills and the guard hook for you; updates arrive through the tool as well. Nothing is cloned and nothing needs editing.
 ### From a clone — one machine, every tool
 
 ```bash
@@ -164,6 +163,3 @@ Both. The installer and the guards are Node and cross-platform; only the small p
 
 **Can I use this without cloning the repo?**
 Yes. Install it as a plugin (see Install) and the tool fetches it for you. On a tool without plugin support, copy a single `skills/<name>/` folder into its skills directory, or paste `PLAYBOOK.md` into the chat.
-
-**Why is this repo private?**
-It's a personal workflow, tuned to my projects and my employers' conventions. The Ponytail parts remain MIT under their own attribution, as noted in each imported file.
