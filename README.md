@@ -65,6 +65,11 @@ codex plugin add agent-playbook@agent-playbook
 ```
 
 The tool downloads the plugin and registers the skills and the guard hook for you; updates arrive through the tool as well. Nothing is cloned and nothing needs editing.
+
+**Staying up to date:** installed plugins are cached per version. In Claude Code open `/plugin`, go to Marketplaces, pick `agent-playbook` and turn on auto-update; it then fetches new releases at startup. To update by hand: `/plugin marketplace update agent-playbook`.
+
+**Maintainers:** bump `version` in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` in every change users should receive (`npm test` fails if the three differ). Without a bump, installed copies do not update.
+
 ### From a clone — one machine, every tool
 
 ```bash
