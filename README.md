@@ -68,7 +68,7 @@ The tool downloads the plugin and registers the skills and the guard hook for yo
 ### From a clone — one machine, every tool
 
 ```bash
-node install.js --git-hooks --agent-guard
+node install.js --git-hooks
 ```
 
 This installs the skills, the `AGENTS.md` rules and the guardrails globally, so every tool on the machine picks them up. The installer never deletes your existing `AGENTS.md`, `CLAUDE.md`, `.muserules`, `.github/muse-instructions.md` or `.git/hooks` files without asking — it backs them up first.
@@ -121,12 +121,14 @@ Two global layers, plus a per-project one:
 - **Agent hooks (`agent-hooks/guard.js`, wired via `adapters/claude-code-hooks.json`)** — run before the agent's Bash / PowerShell tool call, before git is even invoked: force-pushes are blocked, and a commit or push on a protected branch asks first.
 - **Project hooks (`hooks/`)** — per-project bash hooks for a repo's `.git/hooks`. The pre-commit hook blocks secret files, token patterns, and files over 5 MB.
 
-Install them globally, or for one repo only:
+The plugin install wires the agent hook for you. For the other layers:
 
 ```bash
-node install.js --git-hooks --agent-guard   # every repo on this machine
-node install.js --git-hooks                 # current repo only
+node install.js --git-hooks                        # git hooks, every repo on this machine
+cp hooks/pre-commit .git/hooks/pre-commit          # secret scan, current repo only
 ```
+
+Without the plugin, merge `adapters/claude-code-hooks.json` into your tool's settings to get the agent hook.
 
 To change what counts as protected — or to allow protected pushes on one machine — copy `config.example.json` to `config.local.json` and edit it. The local file is gitignored.
 
