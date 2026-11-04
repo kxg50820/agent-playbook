@@ -1,0 +1,28 @@
+name: plugin-version
+
+# Runs the tests and refuses shipped changes that do not bump the plugin version,
+# because installed plugins only update when the version changes.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - name: Require a version bump when shipped files change
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then BASE="origin/$BASE_REF"; else BASE="$BEFORE_SHA"; fi
+          node scripts/check-version-bump.js "$BASE"
