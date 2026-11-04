@@ -5,13 +5,14 @@ set -euo pipefail
 fail=0
 
 # 1. Block obviously secret files
-if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$|id_rsa|credentials'; then
+if git diff --cached --name-only | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$|id_rsa|(^|/)credentials(\.[^/]*)?$' | grep -vE '\.(example|sample|template)$'; then
   echo "✗ Blocked: staged file looks like a secret/credential file."
   fail=1
 fi
 
-# 2. Block token-shaped strings in staged changes
-if git diff --cached | grep -E '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'; then
+# 2. Block token-shaped strings in ADDED lines only (removing a leaked secret must stay possible).
+#    -q: never print the matched line, it would copy the secret into logs and agent context.
+if git diff --cached -U0 | grep -E '^\+' | grep -vE '^\+\+\+ ' | grep -qE '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'; then
   echo "✗ Blocked: staged change contains a token / private key pattern."
   fail=1
 fi
