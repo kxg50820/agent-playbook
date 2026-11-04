@@ -20,11 +20,6 @@ These rules apply to every AI coding agent working on my behalf, regardless of t
 
 This playbook includes the Ponytail skill (skills/ponytail/SKILL.md, from DietrichGebert/ponytail, MIT). Use it on coding tasks: the best code is the code never written. Before writing, take the first option that fully works — (1) does it need to exist at all (YAGNI), (2) already in this codebase, (3) standard library / platform feature, (4) an already-installed dependency, (5) one line a reader gets at a glance, (6) otherwise the minimum code that works. Never cut validation at trust boundaries, error handling that prevents data loss, security, or accessibility. A deliberate shortcut with a known limit gets a comment in the form `shortcut: <the limit>, <when to upgrade>`. Levels lite / full (default) / ultra follow the skill. If AGENTS.md and the skill ever conflict, AGENTS.md wins.
 
-
-
-
-
-
 ## Working rules
 
 - Read the existing code before proposing a change.
@@ -61,25 +56,3 @@ This playbook includes the Ponytail skill (skills/ponytail/SKILL.md, from Dietri
 - If a hook or tool complains about my changes, fix the issue instead of disabling it.
 - Never use `git reset --hard`.
 - If a test fails after a change, stop and fix the test before continuing.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

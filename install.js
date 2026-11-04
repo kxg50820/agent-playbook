@@ -70,10 +70,7 @@ function removeLink(p) {
   }
 }
 
-// Folders starting with "_" (e.g. _template) are not installed.
-const skills = fs
-  .readdirSync(SKILLS)
-  .filter((n) => !n.startsWith("_") && fs.existsSync(path.join(SKILLS, n, "SKILL.md")));
+const skills = fs.readdirSync(SKILLS).filter((n) => fs.existsSync(path.join(SKILLS, n, "SKILL.md")));
 const tools = Object.keys(TOOLS).filter((t) => (!ONLY || ONLY.includes(t)) && fs.existsSync(path.join(HOME, TOOLS[t].dir)));
 
 if (ONLY) for (const t of ONLY) if (!TOOLS[t]) console.warn("Unknown tool '" + t + "'. Known: " + Object.keys(TOOLS).join(", "));

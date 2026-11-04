@@ -29,20 +29,6 @@ Jira ticket first. If you didn't give one and the branch name doesn't have one, 
 3. If the user gave a different name, use that name exactly.
 4. Run `git status` to confirm the tree is clean.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## 2. Work and check
 
 1. Implement the change with small, reviewable diffs.
@@ -79,23 +65,3 @@ Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The sc
 2. If `gh` is not available, print the exact PR creation URL the script prints and the full PR title and body, so the user can paste them.
 3. Do not edit the PR body by hand unless the user asks for a change. If they do, make the change, then regenerate the body with the script.
 4. Never open a PR per commit unless the user explicitly asks for separate PRs.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
