@@ -1,0 +1,1 @@
+{"interface":{"displayName":"Agent Playbook"},"name":"agent-playbook","plugins":[{"category":"Productivity","name":"agent-playbook","policy":{"authentication":"ON_INSTALL","installation":"AVAILABLE"},"source":{"ref":"main","source":"url","url":"https://github.com/kxg50820/agent-playbook.git"}}]}
