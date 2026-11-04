@@ -1,6 +1,6 @@
 # Skills
 
-One folder per skill, each with a `SKILL.md` (see `_template/`).
+One folder per skill, each with a `SKILL.md` (see `../templates/skill-template/`).
 
 Rules for adding a skill here:
 1. Read its full SKILL.md/source before adding — no blind installs.
