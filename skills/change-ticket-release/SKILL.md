@@ -40,6 +40,7 @@ git log --oneline -5                       # let the user confirm the source cha
 git branch -a --list '<TICKET>' '*/<TICKET>'
 git checkout -b <TICKET>                   # exact name, no suffix
 ```
+- Release branches are named exactly after the ticket, with no slug. This differs on purpose from normal work (`ABC-123-add-login` in `split-commit-pr`).
 - **One ticket = one branch = one PR.** Never reuse another ticket's branch, a feature branch or the default branch.
 - If the branch already exists, ask: continue on it (merge `origin/<default>` in) or stop. Never delete, recreate or force-push it.
 - Uncommitted work: list it and ask before stashing. Never discard it.
