@@ -49,46 +49,6 @@ This single file contains the catalogue, the folder structure and the full sourc
 |---|---|
 | `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
 
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
-### Templates (`templates/`)
-| Template | Use when |
-|---|---|
-| `skill-template` | Starting point for a new skill; lives outside `skills/` so the plugin loader skips it |
-
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
 |---|---|---|
@@ -113,10 +73,6 @@ agent-playbook/
 ├── .codex-plugin/
 │   └── plugin.json
 ├── .github/
-│   ├── workflows/
-│   │   └── plugin-version.yml   # CI: tests + version-bump check
-│   ├── workflows/
-│   │   └── plugin-version.yml   # CI: tests + version-bump check
 │   ├── workflows/
 │   │   └── plugin-version.yml   # CI: tests + version-bump check
 │   └── muse-instructions.md   # Copilot entry point -> AGENTS.md
@@ -180,8 +136,6 @@ agent-playbook/
 ├── test/   # node:test checks for the guards, pre-commit scan and PR draft
 │   ├── guards.test.js
 │   ├── version-bump.test.js
-│   ├── version-bump.test.js
-│   ├── version-bump.test.js
 │   └── versions.test.js
 ├── .gitignore
 ├── .muserules   # Cursor entry point -> AGENTS.md
@@ -189,12 +143,6 @@ agent-playbook/
 ├── CLAUDE.md   # Claude Code entry point -> AGENTS.md
 ├── config.example.json   # defaults (override in config.local.json, gitignored)
 ├── install.js   # links skills into detected tools, optional git hooks
-├── package.json   # `npm test` only, no dependencies
-├── package.json   # `npm test` only, no dependencies
-├── package.json   # `npm test` only, no dependencies
-├── package.json   # `npm test` only, no dependencies
-├── package.json   # `npm test` only, no dependencies
-├── package.json   # `npm test` only, no dependencies
 ├── package.json   # `npm test` only, no dependencies
 ├── PLAYBOOK.md
 └── README.md   # install + usage
