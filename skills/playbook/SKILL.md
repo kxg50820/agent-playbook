@@ -1,9 +1,9 @@
 ---
-name: agent-playbook
+name: playbook
 description: The standing rules and skill routing for Kruthik Gandrathi's agent-playbook. Use at the start of any coding task in a project that has adopted this playbook: it sets how the agent should work (understand first, smallest complete change, surgical edits, verify before claiming done, git safety, Jira ticket first) and which bundled skill to reach for (ponytail for coding, ponytail-review for diffs, ponytail-audit for whole repos, ponytail-debt for shortcuts, split-commit-pr for commits and PRs, change-ticket-release for releases). Also usable on its own, without the rest of the plugin: the rules and compact checklists below are self-contained.
 ---
 
-# agent-playbook — the umbrella skill
+# playbook — the umbrella skill
 
 This is the front door to the playbook. It carries the standing rules every task follows, and it routes bigger jobs to the specialised skills bundled with it. If those skills are not installed, the compact fallbacks in this file still apply — follow them inline instead of skipping the step.
 
