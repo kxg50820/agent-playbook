@@ -30,6 +30,11 @@ This single file contains the catalogue, the folder structure and the full sourc
 | `_template` | Starting point for a new skill (not installed) | — |
 | `change-ticket-release` | Promote validated changes (e.g. stage → prod) under a change ticket: ask ticket first, branch named after it, parity table, copy only approved items | `scripts/json-diff.js` — semantic JSON diff (ignores key order/BOM, matches array items by id) |
 | `ponytail` | Coding tasks where the smallest complete change is preferred | — |
+| `ponytail-review` | Review a change for correctness, safety, load, tests, speed and lean code | — |
+| `ponytail-audit` | Audit a whole repo for bugs, risks, load, tests, speed and what to cut | — |
+| `ponytail-debt` | List deliberate `shortcut:` comments in a debt ledger | — |
+| `ponytail-gain` | Display Ponytail's published benchmark results | — |
+| `ponytail-help` | Show a quick reference for Ponytail levels and skills | — |
 
 ### Hooks / guardrails
 | Hook | Where it runs | What it does |
@@ -41,7 +46,7 @@ This single file contains the catalogue, the folder structure and the full sourc
 
 ## 2. Structure
 
-37 files total, including `PLAYBOOK.md`.
+42 files total, including `PLAYBOOK.md`.
 
 ```text
 agent-playbook/
@@ -82,6 +87,16 @@ agent-playbook/
 │   │   │   └── json-diff.js
 │   │   └── SKILL.md
 │   ├── ponytail/
+│   │   └── SKILL.md
+│   ├── ponytail-audit/
+│   │   └── SKILL.md
+│   ├── ponytail-debt/
+│   │   └── SKILL.md
+│   ├── ponytail-gain/
+│   │   └── SKILL.md
+│   ├── ponytail-help/
+│   │   └── SKILL.md
+│   ├── ponytail-review/
 │   │   └── SKILL.md
 │   ├── split-commit-pr/
 │   │   ├── scripts/
@@ -373,7 +388,7 @@ Current skills, and where to find them:
 
 - `split-commit-pr` — Split a branch into small, logical commits and open one PR whose title and body summarise the whole branch. See `skills/split-commit-pr/SKILL.md`.
 - `change-ticket-release` — Compare two environments' JSON, file a change ticket, compare the before/after JSON with the semantic diff, get the parity table approved, then release. See `skills/change-ticket-release/SKILL.md`.
-- `ponytail` — Lazy senior dev mode: smallest complete change, YAGNI ladder, levels lite/full/ultra. See `skills/ponytail/SKILL.md`, imported from DietrichGebert/ponytail under MIT.
+- `ponytail` — Lazy senior dev mode: smallest complete change, YAGNI ladder, levels lite/full/ultra. See `skills/ponytail/SKILL.md`, imported from DietrichGebert/ponytail under MIT. Companion one-shot report/display skills, also imported from DietrichGebert/ponytail under MIT and invoked on demand: `ponytail-review`, `ponytail-audit`, `ponytail-debt`, `ponytail-gain` and `ponytail-help`.
 
 Skills are read-only building blocks: the agent should not change a skill's steps for one task. To add a skill, read the whole `SKILL.md` first, then follow `skills/README.md` (for example: offer an office-safe prompt first, note the source URL and date, and remove any skill you no longer use).
 
@@ -1665,4 +1680,351 @@ Generate the PR body from the *whole branch* using `scripts/pr-draft.js`. The sc
 
 
 
+~~~~
+
+### `skills/ponytail-audit/SKILL.md`
+
+<!-- file: skills/ponytail-audit/SKILL.md -->
+~~~~markdown
+---
+name: ponytail-audit
+description: >
+  Quality audit of a whole repo: bugs, security holes, what breaks under real
+  load, risky code without tests, slow paths, and what to delete, merge or
+  split. Ranked, each finding explained in plain English. One-shot report,
+  changes nothing. Use for "audit this codebase", "review the whole repo",
+  "find bloat", "what can I delete", /ponytail-audit.
+---
+
+> Imported from https://github.com/DietrichGebert/ponytail (skills/ponytail-audit/SKILL.md), MIT © Dietrich Gebert. Retrieved 2026-11-03. Local AGENTS.md rules win on any conflict.
+
+Audit the whole repo like the senior developer who just inherited it and will be paged when it breaks. Order of importance: correct, safe, holds under load, tested, fast, lean. Lean still matters: every extra line must be read, tested and fixed later. This is a report the user asked for, so give it in full.
+
+## 1. Map first
+
+- Audit what the user names: a folder, a package, or the whole repo. Nothing named: the whole repo.
+- Read the README, the deploy and build config, the dependency list, the entry points (main, routes, handlers, jobs, CLI commands) and the tests.
+- Find the expected load: one person running a script, or many users and processes at once. Judge scale against that, and say which load you assumed.
+- Trace the main flows end to end: where data comes in, what is stored, what goes out. Read those paths fully: input from users, money, auth, data writes, background jobs, anything shared between processes.
+- Big repo: go deep where a mistake costs the most, not file by file. Say which parts you did not read.
+
+## 2. Look for
+
+1. **Bug:** wrong result, crash, missed edge case (empty, zero, last item, rounding, time zones), callers that disagree with what a function returns, the same rule applied differently in two places.
+2. **Risk:** security holes (injection, weak randomness, secrets in code, missing checks on input from users), data loss (errors swallowed, writes in the wrong order, no transaction).
+3. **Scale:** fine for one user, wrong for many: check-then-write races, the same work done by every process, memory or lists that only grow, a query per item, O(n^2) on big input, per-process state that must be shared.
+4. **Missing test:** risky logic (a branch, a parser, money, security, data writes) with no test that fails when it breaks. One good test, not coverage.
+5. **Speed:** big slowdowns are problems. Small wins (work repeated in a hot loop) are suggestions; some software counts every millisecond.
+6. **Lean:** code that should not exist or should be smaller.
+   - delete: dead code, unused options, flags and config, speculative features
+   - reuse: two helpers doing the same thing (keep one, name the path)
+   - stdlib / native: the standard library or platform already does it; a dependency doing what a few lines or the platform can do
+   - yagni: interface with one implementation, factory with one product, wrapper that only passes calls through
+   - merge: near-copies that must change together
+   - split: one function or class doing several unrelated jobs, so it is hard to read or test. Split by job, never by line count, and never into helpers that exist only to make a function shorter.
+
+## 3. Check before you report
+
+- Every finding needs a concrete case: "this input or situation leads to this wrong result". No case, no finding.
+- Before calling code unused, grep the whole tree for it, including tests, fixtures, config, and string or dynamic references.
+- A shortcut marked with a `shortcut:` (or older `ponytail:`) comment that names its limit is a decision, not a finding, unless the expected load already crosses it.
+- Propose the smallest fix that works. Prefer fixes that delete code. Never add layers, frameworks or config the problem does not need.
+- No style taste, no "consider", no vague worries.
+
+## 4. Output
+
+Very simple English: short sentences, everyday words. Explain a technical term the first time you use it. The reader may never have seen this code.
+
+Start with `What this repo does:` in two or three sentences, and the load you assumed.
+
+Then the findings in three groups, most important first, skip empty groups:
+
+- **Must fix:** bug, security, data loss, breaks at the expected load.
+- **Should fix:** risky code without a test, real slowness, duplication, a function that mixes jobs, code that should not exist.
+- **Nice to have:** small speed-ups, shorter forms.
+
+Number findings across all groups, so the user can say "fix 2 and 5". At most 20 findings; if you left smaller ones out, say how many.
+
+Every finding has all four parts, each one or two short sentences:
+
+2. **Orders land on the wrong day** (`billing/close_day.py:L40-52`)
+   - **What this is:** At midnight this job closes the day and bills all orders of that day.
+   - **Problem:** It takes "today" from the server clock, which runs in UTC. An order placed at 00:30 in Berlin is billed on the day before.
+   - **Fix:** Compute the day once in the shop's time zone: `datetime.now(ZoneInfo("Europe/Berlin")).date()`. One line, nothing else changes.
+   - **If we skip it:** Late orders show the wrong date, and accounting fixes them by hand.
+
+End with:
+
+- `Verdict:` one line: healthy, or what to fix first.
+- `Lean: -<N> lines, -<M> dependencies possible.` when lean findings exist.
+- `Not checked:` the parts you did not read or could not run.
+
+Nothing found: `What this repo does:`, then `Healthy. Nothing to fix.` and one line on what you checked.
+
+One-shot report, changes no code.
+~~~~
+
+### `skills/ponytail-debt/SKILL.md`
+
+<!-- file: skills/ponytail-debt/SKILL.md -->
+~~~~markdown
+---
+name: ponytail-debt
+description: >
+  List every `shortcut:` comment (and older `ponytail:` ones) as a debt ledger. One-shot report,
+  changes nothing. Use for "ponytail debt", "what did ponytail defer", "list the
+  shortcuts", /ponytail-debt.
+---
+
+> Imported from https://github.com/DietrichGebert/ponytail (skills/ponytail-debt/SKILL.md), MIT © Dietrich Gebert. Retrieved 2026-11-03. Local AGENTS.md rules win on any conflict.
+
+Every deliberate ponytail shortcut is marked with a `shortcut:` comment naming its ceiling and upgrade path (older code may say `ponytail:`). This collects them into one ledger so a deferral can't quietly become permanent.
+
+## Scan
+
+Grep the repo for comment markers, skipping `.git` and everything the `.gitignore` files ignore (dependencies, build output, caches, in any stack):
+
+`git grep --no-index --exclude-standard -nE '(#|//|/[*]) ?(shortcut|ponytail):'`  (add other comment prefixes if your stack uses them)
+
+If the user names their own marker word (`/ponytail-debt TODO`), grep for that word instead.
+
+Each hit is one ledger row. The comment prefix keeps prose that merely mentions the convention out of the ledger. Skip hits that are not a deferral, like a note about a keyboard shortcut.
+
+## Output
+
+One row per marker, grouped by file:
+
+`<file>:<line>, <what was simplified>. ceiling: <the limit named>. upgrade: <the trigger to revisit>.`
+
+The convention is `shortcut: <ceiling>, <upgrade path>`, so pull the ceiling and the trigger straight from the comment. Want an owner per row too? add `git blame -L<line>,<line>`.
+
+Flag the rot risk: any marker comment that names no upgrade path or trigger gets a `no-trigger` tag, those are the ones that silently rot.
+
+End with `<N> markers, <M> with no trigger.` Nothing found: `No shortcut debt. Clean ledger.`
+
+## Boundaries
+
+Reads and reports only, changes nothing. To persist it, ask and it writes the ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot.
+~~~~
+
+### `skills/ponytail-gain/SKILL.md`
+
+<!-- file: skills/ponytail-gain/SKILL.md -->
+~~~~markdown
+---
+name: ponytail-gain
+description: >
+  Show ponytail's measured savings (code, cost, speed) from the benchmark.
+  One-shot display. Use for /ponytail-gain, "what does ponytail save",
+  "ponytail impact".
+---
+
+> Imported from https://github.com/DietrichGebert/ponytail (skills/ponytail-gain/SKILL.md), MIT © Dietrich Gebert. Retrieved 2026-11-03. The figures below are the upstream author's published benchmark claims, not independently verified. Local AGENTS.md rules win on any conflict.
+
+# Ponytail Gain
+
+Display this scoreboard when invoked. One-shot: do NOT change mode, write flag files, or persist anything.
+
+The figures are the published agentic benchmark of Ponytail 5: headless Claude Code (Opus 5.5, default effort) on 39 tasks (feature tickets in a real FastAPI + React repo, bug fixes, security and privacy cases, small apps), 5 runs each, against the same agent without the skill. 18 of the tasks have hidden checks for correctness and safety. Each figure is the geometric mean of the per-task medians. They are measured, not computed from the current repo.
+
+Source: `benchmarks/results/2026-10-07-agentic.md` and the README.
+
+## Scoreboard
+
+Render plain ASCII bars. The bar length shows ponytail as a share of the no-skill baseline; the label carries the exact figure:
+
+```
+  ponytail gain           benchmark · 39 tasks × 5 runs · Opus 5.5
+
+  no-skill        ████████████████████  100%
+  Lines of code   █████████···········   47%   ▼ 53%
+  Output tokens   ███████████·········   55%   ▼ 45%
+  Cost            ███████████████·····   74%   ▼ 26%
+  Time            ████████████········   59%   ▼ 41%
+
+  Hidden checks passed   97%  (no-skill 96%)
+  Tests where the logic needs one   98%  (no-skill 68%)
+
+  This repo:  /ponytail-debt  (shortcuts you deferred)
+              /ponytail-audit (what's still cuttable)
+```
+
+## Honesty boundary
+
+These are benchmark averages, not this repo. NEVER print a per-repo savings number ("you saved X lines/tokens here"): the unbuilt version was never written, so there is no real baseline to subtract from in a live repo. The only real per-repo figures come from `/ponytail-debt` (a counted ledger), and this card points there instead of inventing one.
+
+## Boundaries
+
+One-shot display. Edits nothing, changes no mode.
+~~~~
+
+### `skills/ponytail-help/SKILL.md`
+
+<!-- file: skills/ponytail-help/SKILL.md -->
+~~~~markdown
+---
+name: ponytail-help
+description: >
+  Quick reference for ponytail levels, skills and commands. One-shot display.
+  Use for /ponytail-help, "ponytail help", "how do I use ponytail".
+---
+
+> Imported from https://github.com/DietrichGebert/ponytail (skills/ponytail-help/SKILL.md), MIT © Dietrich Gebert. Retrieved 2026-11-03. Local AGENTS.md rules win on any conflict.
+
+# Ponytail Help
+
+Display this reference card when invoked. One-shot, do NOT change mode, write flag files, or persist anything.
+
+## Levels
+
+| Level | Trigger | What change |
+|-------|---------|-------------|
+| **Lite** | `/ponytail lite` | Build what was asked, name the smaller option in one line. |
+| **Full** | `/ponytail` | The smallest complete change, a check where the logic needs one, and a reply that names what was skipped and any risk. Default. |
+| **Ultra** | `/ponytail ultra` | Also questions the request and pushes back before building. |
+
+Level sticks until changed or session end.
+
+## Skills
+
+| Skill | Trigger | What it does |
+|-------|---------|--------------|
+| **ponytail** | `/ponytail` | Lazy mode itself: least new code, clear replies that name skipped work and risks. |
+| **ponytail-review** | `/ponytail-review` | Quality review of a diff: bugs, security, load, missing tests, speed, what to cut. Each finding says what goes wrong and how to fix it. |
+| **ponytail-audit** | `/ponytail-audit` | The same quality review for the whole repo, ranked. |
+| **ponytail-debt** | `/ponytail-debt` | Harvest `shortcut:` comments into a tracked ledger. |
+| **ponytail-gain** | `/ponytail-gain` | Measured-impact scoreboard: less code, less cost, more speed. |
+| **ponytail-help** | `/ponytail-help` | This card. |
+
+In Codex CLI and the IDE extension, invoke skills with `$ponytail:ponytail`, `$ponytail:ponytail-review`, or `$ponytail:ponytail-help`. Claude Code and OpenCode use the slash-command forms above (OpenCode ships all six as slash commands).
+
+## Deactivate
+
+Say "stop ponytail" or "normal mode". Resume anytime with `/ponytail`. `/ponytail off` also works.
+
+## Band (Claude Code)
+
+`/ponytail band` hides the band above the prompt, the same command brings it back. `/ponytail band on` and `/ponytail band off` set it directly. The level stays. `/ponytail band import` adds your past Claude Code sessions (cost, agent time, tokens) to the board.
+
+Note: the band itself is part of the upstream plugin and is NOT installed by this playbook; only the skills are imported.
+
+## Configure Default Mode
+
+Default mode = `full`, auto-active every session. Change it:
+
+**Environment variable** (highest priority):
+
+```bash
+export PONYTAIL_DEFAULT_MODE=ultra
+```
+
+**Config file** (`~/.config/ponytail/config.json`, Windows: `%APPDATA%\ponytail\config.json`):
+
+```json
+{ "defaultMode": "lite" }
+```
+
+Set `"off"` to disable auto-activation on session start, activate manually with `/ponytail` when wanted.
+
+Resolution: env var > config file > `full`.
+
+## Update
+
+Enable auto-update once: open `/plugin`, go to Marketplaces, pick ponytail, Enable auto-update. Claude Code then pulls new versions at startup (run `/reload-plugins` when it prompts). Manual refresh: `/plugin marketplace update ponytail` then `/reload-plugins`.
+
+If `/plugin` is not recognized, your Claude Code is out of date. Update it (`npm install -g @anthropic-ai/claude-code@latest`, or `brew upgrade claude-code`) and restart. Other hosts use their own update flow.
+
+Note: the plugin update flow above applies to upstream plugin installs; in this playbook the skills are plain files, updated by re-importing from the source repo.
+
+## More
+
+Full docs + examples: https://github.com/DietrichGebert/ponytail
+~~~~
+
+### `skills/ponytail-review/SKILL.md`
+
+<!-- file: skills/ponytail-review/SKILL.md -->
+~~~~markdown
+---
+name: ponytail-review
+description: >
+  Quality review of a change: is the logic right, is it safe, does it hold
+  under real load, is risky code tested, is it fast enough, and is every line
+  needed. Reads the connected code, not only the diff. Each finding is
+  explained in plain English. Use for "review this", "code review", "review
+  the last commit", "review my PR", "is this over-engineered", /ponytail-review.
+---
+
+> Imported from https://github.com/DietrichGebert/ponytail (skills/ponytail-review/SKILL.md), MIT © Dietrich Gebert. Retrieved 2026-11-03. Local AGENTS.md rules win on any conflict.
+
+Review a change like the senior developer who will be paged when it breaks.
+
+Order of importance: correct, safe, holds under load, tested, fast, lean.
+
+Lean still matters: every extra line must be read, tested and fixed later.
+
+This is a report the user asked for, so give it in full.
+
+## 1. Understand first
+
+- Review what the user names: uncommitted or staged changes, a branch, a PR link, or files. Nothing named: the uncommitted changes, or the last commit if there are none.
+- Read the diff, then the code it touches: callers of every changed function, the functions it calls, the tests, the README.
+- Trace the real flow: where data comes in, what is stored, what goes out.
+- A change can break code it does not touch. When a signature, return value or behavior changes, grep every caller.
+- Find the expected load in the repo (README, deploy config): one person running a script, or many users and processes at once. Judge scale against that, and say which load you assumed.
+
+## 2. Look for
+
+1. **Bug:** wrong result, crash, missed edge case (empty, zero, last item, rounding, time zones), a caller broken by the change, a fix applied in one caller while the shared function stays broken.
+2. **Risk:** security holes (injection, weak randomness, secrets, missing checks on input from users), data loss (errors swallowed, writes in the wrong order, no transaction).
+3. **Scale:** fine for one user, wrong for many: check-then-write races, the same work done by every process, memory or lists that only grow, a query per item, O(n^2) on big input, per-process state that must be shared.
+4. **Missing test:** risky new logic (a branch, a parser, money, security, data writes, a bug fix) with no test that fails when it breaks. One good test, not coverage.
+5. **Speed:** big slowdowns are problems. Small wins (work repeated in a hot loop) are suggestions; some software counts every millisecond.
+6. **Lean:** code that should not exist or should be smaller.
+   - delete: dead code, unused options, speculative features
+   - reuse: the repo already has this helper (name the path)
+   - stdlib / native: the standard library or platform already does it; a new dependency for a few lines
+   - yagni: abstraction with one implementation, config nobody sets
+   - merge: near-copies that must change together
+   - split: one function doing several unrelated jobs, so it is hard to read or test. Split by job, never by line count, and never into helpers that exist only to make a function shorter.
+
+## 3. Check before you report
+
+- Every finding needs a concrete case: "this input or situation leads to this wrong result". No case, no finding.
+- Re-read the lines and confirm: the caller exists, the value can really be empty, the code really is unused.
+- A shortcut marked with a `shortcut:` (or older `ponytail:`) comment that names its limit is a decision, not a finding, unless the expected load already crosses it.
+- Propose the smallest fix that works. Prefer fixes that delete code. Never add layers, frameworks or config the problem does not need.
+- No style taste, no "consider", no vague worries.
+
+## 4. Output
+
+Very simple English: short sentences, everyday words. Explain a technical term the first time you use it. The reader may never have seen this code.
+
+Start with `What this change does:` in two or three sentences.
+
+Then the findings in three groups, skip empty groups:
+
+- **Must fix:** bug, security, data loss, breaks at the expected load.
+- **Should fix:** risky code without a test, real slowness, duplication, a function that mixes jobs, code that should not exist.
+- **Nice to have:** small speed-ups, shorter forms.
+
+Number findings across all groups, so the user can say "fix 2 and 5".
+
+Every finding has all four parts, each one or two short sentences:
+
+2. **Orders land on the wrong day** (`billing/close_day.py:L40-52`)
+   - **What this is:** At midnight this job closes the day and bills all orders of that day.
+   - **Problem:** It takes "today" from the server clock, which runs in UTC. An order placed at 00:30 in Berlin is billed on the day before.
+   - **Fix:** Compute the day once in the shop's time zone: `datetime.now(ZoneInfo("Europe/Berlin")).date()`. One line, nothing else changes.
+   - **If we skip it:** Late orders show the wrong date, and accounting fixes them by hand.
+
+End with:
+
+- `Verdict: Ship.` or `Verdict: fix 1 and 3 first.`
+- `Lean: -<N> lines possible.` when lean findings exist.
+- `Not checked:` one line, if something mattered and you could not check it.
+
+Nothing found: `What this change does:`, then `Looks good. Ship.` and one line on what you checked.
+
+Lists findings, changes no code.
 ~~~~
